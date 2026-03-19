@@ -2,7 +2,7 @@
 
 CodeLens annotations for React components — powered by the React Compiler itself.
 
-![CodeLens showing Server/Client Component labels and compilation status](https://github.com/user-attachments/assets/f9c188c9-6963-475d-a08b-ce5d2185c4f9)
+![CodeLens showing Client Component labels with directive inheritance](https://github.com/user-attachments/assets/1e8b0a8e-30b5-4408-b10f-0f97f29e7611)
 
 ![Compilation error inline diagnostic](https://github.com/user-attachments/assets/a8c72d20-56a3-4dc8-b44f-a172349c8cd0)
 
