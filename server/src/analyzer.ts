@@ -138,7 +138,7 @@ export class Analyzer {
     const skipEvent = events.find(e => e.kind === 'CompileSkip');
     if (skipEvent) {
       const raw = skipEvent.raw as { kind: 'CompileSkip'; reason: string };
-      return { status: 'skip', reason: raw.reason };
+      return { status: 'skip', reason: cleanSkipReason(raw.reason) };
     }
 
     const errorEvents = events.filter(e =>
@@ -301,6 +301,22 @@ export class Analyzer {
 }
 
 // --- Module-level helpers ---
+
+/**
+ * Clean up skip reason from React Compiler.
+ * The compiler may stringify directive AST nodes as [object Object].
+ */
+function cleanSkipReason(reason: string): string {
+  if (reason.includes('[object Object]')) {
+    // Extract the directive pattern — common: "Skipped due to '...' directive"
+    if (reason.toLowerCase().includes('directive')) {
+      return 'use no memo';
+    }
+    return 'opt-out directive';
+  }
+  // Strip trailing period for cleaner display
+  return reason.replace(/\.$/, '');
+}
 
 function isPascalCase(name: string): boolean {
   if (/^use[A-Z0-9]/.test(name)) return false;

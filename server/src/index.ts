@@ -7,7 +7,6 @@ import {
   DiagnosticSeverity,
   type InitializeParams,
   type InitializeResult,
-  NotificationType,
   ProposedFeatures,
   Range,
   TextDocuments,
@@ -22,19 +21,6 @@ import type {
   Directive,
   Framework,
 } from '@react-compiler-lens/shared';
-
-// -------------------------------------------------------------------
-// Notification types (server → client)
-// -------------------------------------------------------------------
-
-interface CompiledCodeParams {
-  uri: string;
-  code: string;
-}
-
-const CompiledCodeNotification = new NotificationType<CompiledCodeParams>(
-  'react-compiler-lens/compiledCode',
-);
 
 // -------------------------------------------------------------------
 // Config interface
@@ -257,13 +243,7 @@ async function runAnalysis(document: TextDocument): Promise<void> {
     connection.sendDiagnostics({ uri, diagnostics: [] });
   }
 
-  // Send compiled code notification if any component succeeded and compiled code is available
-  if (result.compiledCode && result.declaredComponents.some(c => c.compileResult.status === 'success')) {
-    connection.sendNotification(CompiledCodeNotification, {
-      uri,
-      code: result.compiledCode,
-    });
-  }
+  // Compiled code stored in analysisCache — client fetches on demand via custom request
 }
 
 // -------------------------------------------------------------------
@@ -306,6 +286,18 @@ function publishDiagnostics(uri: string, result: FileAnalysisResult): void {
 
   connection.sendDiagnostics({ uri, diagnostics });
 }
+
+// -------------------------------------------------------------------
+// Custom request: fetch compiled code on demand
+// -------------------------------------------------------------------
+
+connection.onRequest(
+  'react-compiler-lens/getCompiledCode',
+  (params: { uri: string }): { code: string | null } => {
+    const result = analysisCache.get(params.uri);
+    return { code: result?.compiledCode ?? null };
+  },
+);
 
 // -------------------------------------------------------------------
 // CodeLens handler

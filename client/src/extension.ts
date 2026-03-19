@@ -1,7 +1,6 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node';
-import { CompiledDocumentProvider } from './virtualDocument';
 import { registerCommands } from './commands';
 
 let client: LanguageClient;
@@ -29,17 +28,7 @@ export function activate(context: vscode.ExtensionContext): void {
     return;
   }
 
-  const compiledProvider = new CompiledDocumentProvider();
-  context.subscriptions.push(
-    vscode.workspace.registerTextDocumentContentProvider('react-compiler-lens', compiledProvider),
-  );
-
-  registerCommands(context, compiledProvider);
-
-  // Listen for compiled code from server
-  client.onNotification('react-compiler-lens/compiledCode', (params: { uri: string; code: string }) => {
-    compiledProvider.updateCompiledCode(params.uri, params.code);
-  });
+  registerCommands(context, client);
 
   client.start();
   context.subscriptions.push({ dispose: () => client?.stop() });
