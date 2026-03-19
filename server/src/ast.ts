@@ -37,8 +37,3 @@ export function isFunctionNode(node: t.Node): node is t.FunctionDeclaration | t.
     || node.type === 'FunctionExpression'
     || node.type === 'ArrowFunctionExpression';
 }
-
-export function isComponentName(name: string): boolean {
-  if (/^use[A-Z0-9]/.test(name)) return false;
-  return /^[A-Z]/.test(name);
-}

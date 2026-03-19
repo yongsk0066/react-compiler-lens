@@ -1,6 +1,6 @@
 import type * as t from '@babel/types';
 import type { Framework, FileAnalysisResult, DeclaredComponentAnalysis, ImportedComponentAnalysis, CompileResult, DiagnosticInfo } from '@react-compiler-lens/shared';
-import { parseCode, walkAst, isComponentName } from './ast';
+import { parseCode, walkAst } from './ast';
 import { compileFile, type CapturedEvent } from './compiler';
 import { extractFileDirective, extractFunctionDirectives } from './directives';
 import { ImportResolver } from './resolution';
@@ -227,7 +227,7 @@ export class Analyzer {
         if (spec.type === 'ImportNamespaceSpecifier') continue;
 
         const name = spec.local.name;
-        if (!isComponentName(name)) continue;
+        if (!isPascalCaseComponentName(name)) continue;
 
         const loc = spec.loc ?? node.loc;
         imports.push({
@@ -283,4 +283,10 @@ function cleanSkipReason(reason: string): string {
     return 'opt-out directive';
   }
   return reason.replace(/\.$/, '');
+}
+
+/** Simple PascalCase check for filtering imported component names. */
+function isPascalCaseComponentName(name: string): boolean {
+  if (/^use[A-Z0-9]/.test(name)) return false;
+  return /^[A-Z]/.test(name);
 }

@@ -1,7 +1,8 @@
 import { parseAsync, transformFromAstAsync } from '@babel/core';
 import type * as t from '@babel/types';
 import type { LoggerEvent, PluginOptions } from 'babel-plugin-react-compiler';
-import { walkAst, isFunctionNode, isComponentName } from './ast';
+import { walkAst, isFunctionNode } from './ast';
+import { classifyFunctions } from './classify';
 
 export interface CapturedEvent {
   kind: string;
@@ -118,11 +119,15 @@ export async function compileFile(
     // Transformation failed — events already captured via logger
   }
 
+  const classification = classifyFunctions(ast);
+
   return {
     events: capturedEvents,
     compiledCode,
     getComponentEvents() {
-      return capturedEvents.filter(e => e.fnName && isComponentName(e.fnName));
+      return capturedEvents.filter(e =>
+        e.fnName != null && classification.get(e.fnName) === 'Component',
+      );
     },
   };
 }
