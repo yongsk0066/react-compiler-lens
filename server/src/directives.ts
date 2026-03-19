@@ -1,8 +1,10 @@
 import * as parser from '@babel/parser';
 import * as babel from '@babel/core';
+import type { NodePath } from '@babel/core';
+import type * as t from '@babel/types';
 import type { Directive } from '@react-compiler-lens/shared';
 
-function parseCode(code: string): parser.ParseResult<parser.File> | null {
+function parseCode(code: string): parser.ParseResult<t.File> | null {
   try {
     return parser.parse(code, {
       sourceType: 'module',
@@ -47,10 +49,10 @@ export function extractFunctionDirectives(code: string): Map<string, Directive> 
 
   try {
     babel.traverse(ast, {
-      'FunctionDeclaration|FunctionExpression|ArrowFunctionExpression'(path) {
+      'FunctionDeclaration|FunctionExpression|ArrowFunctionExpression'(path: NodePath) {
         const node = path.node as babel.types.Function & {
           body: babel.types.BlockStatement & {
-            directives?: parser.ParseResult<parser.File>['program']['directives'];
+            directives?: t.File['program']['directives'];
           };
         };
 

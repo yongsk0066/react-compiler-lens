@@ -89,7 +89,7 @@ export async function compileFile(
 
     // Recurse into child nodes
     for (const key of Object.keys(node)) {
-      const child = (node as Record<string, unknown>)[key];
+      const child = (node as unknown as Record<string, unknown>)[key];
       if (child && typeof child === 'object') {
         if (Array.isArray(child)) {
           for (const item of child) {
@@ -126,7 +126,7 @@ export async function compileFile(
 
     for (const key of Object.keys(node)) {
       if (key === 'type') continue;
-      const child = (node as Record<string, unknown>)[key];
+      const child = (node as unknown as Record<string, unknown>)[key];
       if (child && typeof child === 'object') {
         if (Array.isArray(child)) {
           for (const item of child) {

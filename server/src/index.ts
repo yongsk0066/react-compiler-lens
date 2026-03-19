@@ -29,12 +29,11 @@ import type {
 
 interface CompiledCodeParams {
   uri: string;
-  componentName: string;
-  compiledCode: string;
+  code: string;
 }
 
 const CompiledCodeNotification = new NotificationType<CompiledCodeParams>(
-  'reactCompilerLens/compiledCode',
+  'react-compiler-lens/compiledCode',
 );
 
 // -------------------------------------------------------------------
@@ -258,15 +257,12 @@ async function runAnalysis(document: TextDocument): Promise<void> {
     connection.sendDiagnostics({ uri, diagnostics: [] });
   }
 
-  // Send compiled code notifications for successfully compiled components
-  for (const comp of result.declaredComponents) {
-    if (comp.compileResult.status === 'success' && result.compiledCode) {
-      connection.sendNotification(CompiledCodeNotification, {
-        uri,
-        componentName: comp.name,
-        compiledCode: result.compiledCode,
-      });
-    }
+  // Send compiled code notification if any component succeeded and compiled code is available
+  if (result.compiledCode && result.declaredComponents.some(c => c.compileResult.status === 'success')) {
+    connection.sendNotification(CompiledCodeNotification, {
+      uri,
+      code: result.compiledCode,
+    });
   }
 }
 

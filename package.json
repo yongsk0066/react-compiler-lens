@@ -79,20 +79,19 @@
     }
   },
   "scripts": {
-    "build": "node scripts/build.mjs",
-    "watch": "node scripts/build.mjs --watch",
+    "build": "rolldown -c rolldown.config.ts",
+    "watch": "rolldown -c rolldown.config.ts --watch",
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:watch": "vitest",
     "package": "vsce package --no-dependencies"
   },
   "devDependencies": {
-    "@types/node": "^20",
-    "@types/vscode": "^1.96.0",
-    "@vscode/vsce": "^3.0.0",
-    "esbuild": "^0.27.4",
-    "rolldown": "latest",
-    "typescript": "^5.9.0",
-    "vitest": "^3.0.0"
+    "@types/node": "^25.5.0",
+    "@types/vscode": "^1.110.0",
+    "@vscode/vsce": "^3.7.1",
+    "rolldown": "1.0.0-rc.10",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
   }
 }

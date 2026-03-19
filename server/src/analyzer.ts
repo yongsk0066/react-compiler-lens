@@ -64,7 +64,7 @@ export class Analyzer {
 
   // --- Private helpers ---
 
-  private parseAst(code: string): parser.ParseResult<parser.File> | null {
+  private parseAst(code: string): parser.ParseResult<t.File> | null {
     try {
       return parser.parse(code, {
         sourceType: 'module',
@@ -138,7 +138,9 @@ export class Analyzer {
       return { status: 'skip', reason: raw.reason };
     }
 
-    const errorEvents = events.filter(e => e.kind === 'CompileError' || e.kind === 'PipelineError');
+    const errorEvents = events.filter(e =>
+      e.kind === 'CompileError' || e.kind === 'PipelineError' || e.kind === 'CompileUnexpectedThrow'
+    );
     if (errorEvents.length > 0) {
       const diagnostics = errorEvents.flatMap(e => this.normalizeDiagnostic(e));
       return { status: 'error', diagnostics };
@@ -183,12 +185,20 @@ export class Analyzer {
       return [{ message: raw.data, line: null, column: null, severity: 'error' }];
     }
 
+    if (event.kind === 'CompileUnexpectedThrow') {
+      const raw = event.raw as unknown as { kind: 'CompileUnexpectedThrow'; unexpectedError: unknown };
+      const err = raw.unexpectedError;
+      const message =
+        err instanceof Error ? err.message : typeof err === 'string' ? err : 'Unexpected error during compilation';
+      return [{ message, line: null, column: null, severity: 'error' }];
+    }
+
     return [];
   }
 
   private buildImportedComponents(
     filePath: string,
-    ast: parser.ParseResult<parser.File>,
+    ast: parser.ParseResult<t.File>,
     code: string,
   ): ImportedComponentAnalysis[] {
     const imports = this.collectPascalCaseImports(ast);
@@ -207,7 +217,7 @@ export class Analyzer {
     });
   }
 
-  private collectPascalCaseImports(ast: parser.ParseResult<parser.File>): ImportInfo[] {
+  private collectPascalCaseImports(ast: parser.ParseResult<t.File>): ImportInfo[] {
     const imports: ImportInfo[] = [];
 
     for (const node of ast.program.body) {
@@ -238,7 +248,7 @@ export class Analyzer {
   }
 
   private collectJsxTagLocations(
-    ast: parser.ParseResult<parser.File>,
+    ast: parser.ParseResult<t.File>,
     componentNames: Set<string>,
   ): JsxUsageMap {
     const usage: JsxUsageMap = {};
@@ -279,7 +289,7 @@ function isPascalCase(name: string): boolean {
 function traverseNode(node: t.Node, visitor: (node: t.Node) => void): void {
   visitor(node);
   for (const key of Object.keys(node)) {
-    const child = (node as Record<string, unknown>)[key];
+    const child = (node as unknown as Record<string, unknown>)[key];
     if (!child || typeof child !== 'object') continue;
     if (Array.isArray(child)) {
       for (const item of child) {

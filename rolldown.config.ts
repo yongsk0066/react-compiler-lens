@@ -2,14 +2,24 @@ import { defineConfig } from 'rolldown';
 
 export default defineConfig([
   {
-    input: 'client/src/extension.ts',
-    output: { file: 'dist/client/extension.js', format: 'cjs', sourcemap: true },
+    input: { extension: 'client/src/extension.ts' },
+    output: {
+      dir: 'dist/client',
+      format: 'cjs',
+      sourcemap: true,
+      entryFileNames: '[name].js',
+    },
     external: ['vscode'],
     platform: 'node',
   },
   {
-    input: 'server/src/index.ts',
-    output: { file: 'dist/server/index.js', format: 'cjs', sourcemap: true },
+    input: { index: 'server/src/index.ts' },
+    output: {
+      dir: 'dist/server',
+      format: 'cjs',
+      sourcemap: true,
+      entryFileNames: '[name].js',
+    },
     platform: 'node',
   },
 ]);
