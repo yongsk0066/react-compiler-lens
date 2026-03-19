@@ -4,6 +4,8 @@ CodeLens annotations for React components — powered by the React Compiler itse
 
 ![CodeLens showing Server/Client Component labels and compilation status](https://github.com/user-attachments/assets/f9c188c9-6963-475d-a08b-ce5d2185c4f9)
 
+![Compilation error inline diagnostic](https://github.com/user-attachments/assets/a8c72d20-56a3-4dc8-b44f-a172349c8cd0)
+
 [Demo video](https://github.com/yongsk0066/react-compiler-lens/releases/download/v0.0.1/demo.mp4)
 
 ## Why
