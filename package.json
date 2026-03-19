@@ -78,6 +78,19 @@
           ],
           "default": "auto",
           "description": "Framework detection mode"
+        },
+        "reactCompilerLens.compiledOutput.viewMode": {
+          "type": "string",
+          "enum": [
+            "side",
+            "peek"
+          ],
+          "default": "side",
+          "enumDescriptions": [
+            "Open compiled output in a side editor tab (Svelte-style)",
+            "Open compiled output in an inline peek view"
+          ],
+          "description": "How to display compiled output when clicking Optimized CodeLens"
         }
       }
     }
