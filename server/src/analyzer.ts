@@ -199,10 +199,21 @@ export class Analyzer {
     ast: ReturnType<typeof parseCode> & object,
     code: string,
   ): ImportedComponentAnalysis[] {
-    const imports = this.collectPascalCaseImports(ast);
-    const jsxUsage = this.collectJsxTagLocations(ast, new Set(imports.map(i => i.name)));
+    const imports = this.collectImportCandidates(ast);
+    const verified: ImportInfo[] = [];
 
-    return imports.map(imp => {
+    for (const imp of imports) {
+      const { resolvedPath, isComponent } = this.importResolver.resolveImportWithPath(
+        filePath, imp.specifier, imp.name,
+      );
+      if (resolvedPath && isComponent) {
+        verified.push(imp);
+      }
+    }
+
+    const jsxUsage = this.collectJsxTagLocations(ast, new Set(verified.map(i => i.name)));
+
+    return verified.map(imp => {
       const { directive, resolvedPath } = this.importResolver.resolveImportWithPath(
         filePath, imp.specifier, imp.name,
       );
@@ -216,7 +227,7 @@ export class Analyzer {
     });
   }
 
-  private collectPascalCaseImports(ast: ReturnType<typeof parseCode> & object): ImportInfo[] {
+  private collectImportCandidates(ast: ReturnType<typeof parseCode> & object): ImportInfo[] {
     const imports: ImportInfo[] = [];
 
     for (const node of ast.program.body) {

@@ -3,6 +3,8 @@ import * as path from 'node:path';
 import * as ts from 'typescript';
 import * as parser from '@babel/parser';
 import { extractFileDirective } from './directives';
+import { classifyFunctions, type ReactFunctionType } from './classify';
+import { parseCode } from './ast';
 import type { Directive } from '@react-compiler-lens/shared';
 
 const DEFAULT_COMPILER_OPTIONS: ts.CompilerOptions = {
@@ -37,8 +39,13 @@ function loadCompilerOptions(dir: string): ts.CompilerOptions {
   return { ...DEFAULT_COMPILER_OPTIONS, ...parsed.options };
 }
 
+interface FileAnalysis {
+  directive: Directive;
+  components: Map<string, ReactFunctionType>;
+}
+
 export class ImportResolver {
-  private directiveCache = new Map<string, Directive>();
+  private fileCache = new Map<string, FileAnalysis>();
   private compilerOptionsCache = new Map<string, ts.CompilerOptions>();
 
   private getCompilerOptions(dir: string): ts.CompilerOptions {
@@ -66,36 +73,53 @@ export class ImportResolver {
     return resolved;
   }
 
-  public getDirective(filePath: string): Directive {
-    if (this.directiveCache.has(filePath)) {
-      return this.directiveCache.get(filePath)!;
+  public getFileAnalysis(filePath: string): FileAnalysis {
+    if (this.fileCache.has(filePath)) {
+      return this.fileCache.get(filePath)!;
     }
 
     let directive: Directive = null;
+    let components = new Map<string, ReactFunctionType>();
     try {
       const code = fs.readFileSync(filePath, 'utf-8');
-      directive = extractFileDirective(code);
+      const ast = parseCode(code);
+      if (ast) {
+        directive = extractFileDirective(code, ast);
+        components = classifyFunctions(ast);
+      }
     } catch {
-      directive = null;
+      // Parse failure
     }
 
-    this.directiveCache.set(filePath, directive);
-    return directive;
+    const result = { directive, components };
+    this.fileCache.set(filePath, result);
+    return result;
+  }
+
+  public getDirective(filePath: string): Directive {
+    return this.getFileAnalysis(filePath).directive;
+  }
+
+  public isComponent(filePath: string, name: string): boolean {
+    return this.getFileAnalysis(filePath).components.get(name) === 'Component';
   }
 
   public resolveImportWithPath(
     fromFile: string,
     specifier: string,
     importedName?: string,
-  ): { directive: Directive; resolvedPath: string | null } {
+  ): { directive: Directive; resolvedPath: string | null; isComponent: boolean } {
     const resolvedPath = this.resolveModulePath(fromFile, specifier);
-    if (!resolvedPath) return { directive: null, resolvedPath: null };
+    if (!resolvedPath) return { directive: null, resolvedPath: null, isComponent: false };
 
-    let directive = this.getDirective(resolvedPath);
+    const analysis = this.getFileAnalysis(resolvedPath);
+    let directive = analysis.directive;
+    const isComponent = importedName ? analysis.components.get(importedName) === 'Component' : false;
+
     if (directive === null && importedName) {
       directive = this.followReExportChain(resolvedPath, importedName, new Set());
     }
-    return { directive, resolvedPath };
+    return { directive, resolvedPath, isComponent };
   }
 
   public resolveImportDirective(
@@ -107,11 +131,11 @@ export class ImportResolver {
   }
 
   public invalidate(filePath: string): void {
-    this.directiveCache.delete(filePath);
+    this.fileCache.delete(filePath);
   }
 
   public clear(): void {
-    this.directiveCache.clear();
+    this.fileCache.clear();
     this.compilerOptionsCache.clear();
   }
 
