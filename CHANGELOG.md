@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.3 (2026-03-20)
+
+- Skip node_modules imports for Server/Client detection (prevents false positives like next/link)
+
 ## 0.0.2 (2026-03-20)
 
 - Use React Compiler's actual classification logic (not PascalCase heuristic)

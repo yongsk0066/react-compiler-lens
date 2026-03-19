@@ -61,7 +61,9 @@ export class ImportResolver {
       ts.sys,
     );
 
-    return result.resolvedModule?.resolvedFileName ?? null;
+    const resolved = result.resolvedModule?.resolvedFileName ?? null;
+    if (resolved && resolved.includes('/node_modules/')) return null;
+    return resolved;
   }
 
   public getDirective(filePath: string): Directive {
