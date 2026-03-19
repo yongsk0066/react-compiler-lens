@@ -201,33 +201,30 @@ export class Analyzer {
     fileDirective: Directive,
   ): ImportedComponentAnalysis[] {
     const imports = this.collectImportCandidates(ast);
-    const verified: ImportInfo[] = [];
+    const resolved = new Map<string, { directive: Directive; resolvedPath: string }>();
 
     for (const imp of imports) {
-      const { resolvedPath, isComponent } = this.importResolver.resolveImportWithPath(
-        filePath, imp.specifier, imp.name,
-      );
-      if (resolvedPath && isComponent) {
-        verified.push(imp);
+      const result = this.importResolver.resolveImportWithPath(filePath, imp.specifier, imp.name);
+      if (result.resolvedPath && result.isComponent) {
+        resolved.set(imp.name, { directive: result.directive, resolvedPath: result.resolvedPath });
       }
     }
 
-    const jsxUsage = this.collectJsxTagLocations(ast, new Set(verified.map(i => i.name)));
+    const jsxUsage = this.collectJsxTagLocations(ast, new Set(resolved.keys()));
 
-    return verified.map(imp => {
-      const { directive, resolvedPath } = this.importResolver.resolveImportWithPath(
-        filePath, imp.specifier, imp.name,
-      );
-      const inheritedDirective = directive === null ? fileDirective : null;
-      return {
-        name: imp.name,
-        importLocation: imp.importLocation,
-        jsxLocations: jsxUsage[imp.name] ?? [],
-        directive,
-        inheritedDirective,
-        sourceFilePath: resolvedPath ?? '',
-      };
-    });
+    return imports
+      .filter(imp => resolved.has(imp.name))
+      .map(imp => {
+        const { directive, resolvedPath } = resolved.get(imp.name)!;
+        return {
+          name: imp.name,
+          importLocation: imp.importLocation,
+          jsxLocations: jsxUsage[imp.name] ?? [],
+          directive,
+          inheritedDirective: directive === null ? fileDirective : null,
+          sourceFilePath: resolvedPath,
+        };
+      });
   }
 
   private collectImportCandidates(ast: ReturnType<typeof parseCode> & object): ImportInfo[] {

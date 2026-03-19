@@ -83,7 +83,6 @@ function shouldShowDeclaredComponent(directive: Directive, cfg: Config): boolean
   return true;
 }
 
-
 function createLabelOnlyLens(line: number, col: number, label: string): CodeLens {
   const range = Range.create(line, col, line, col);
   const lens = CodeLens.create(range);
