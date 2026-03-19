@@ -2,10 +2,9 @@
 
 CodeLens annotations for React components — powered by the React Compiler itself.
 
-<!-- TODO: add screenshot.png to media/ -->
-![CodeLens showing Server/Client Component labels and compilation status](media/screenshot.png)
+![CodeLens showing Server/Client Component labels and compilation status](https://github.com/user-attachments/assets/f9c188c9-6963-475d-a08b-ce5d2185c4f9)
 
-https://github.com/yongsk0066/react-compiler-lens/releases/download/v0.0.1/demo.mp4
+[Demo video](https://github.com/yongsk0066/react-compiler-lens/releases/download/v0.0.1/demo.mp4)
 
 ## Why
 
