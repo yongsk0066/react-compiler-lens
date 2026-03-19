@@ -2,6 +2,11 @@
 
 CodeLens annotations for React components — powered by the React Compiler itself.
 
+<!-- TODO: add screenshot.png to media/ -->
+![CodeLens showing Server/Client Component labels and compilation status](media/screenshot.png)
+
+https://github.com/yongsk0066/react-compiler-lens/releases/download/v0.0.1/demo.mp4
+
 ## Why
 
 The React Compiler decides which components get optimized. But that decision is invisible until you check the build output. You can't tell from the source whether a component was memoized, skipped, or rejected.
