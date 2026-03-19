@@ -69,7 +69,9 @@ Configuration:
 - `panicThreshold: 'none'` — fault tolerance, collect all errors instead of stopping at first
 - A custom `logger` callback to capture all events per function
 
-The compiled output string (`result.code`) is stored for peek preview on CodeLens click.
+The compiled output string (`result.code` from `transformFromAstAsync`) is stored for peek preview on CodeLens click. No separate `@babel/generator` call is needed — `@babel/core` produces the output string directly.
+
+**Compilation mode:** Uses the default `compilationMode: 'infer'`, which compiles functions that are either explicitly marked (syntax declarations) or heuristically identified as components/hooks (PascalCase + hooks/JSX usage).
 
 **Note:** `getReactFunctionType()` is not part of the public API. We do NOT call it directly. Instead, we run the full compilation pipeline and observe results through logger events. This maintains the SSOT principle — the compiler decides what is a component.
 
@@ -87,7 +89,13 @@ The compiler emits structured `LoggerEvent`s during compilation. All seven varia
 | `PipelineError` | Error — treated as compilation failure |
 | `Timing` | Ignored (internal performance metric) |
 
-Each event includes `fnLoc` (function source location) and `fnName` to map results back to specific functions.
+**Event-to-function mapping:** Only `CompileSuccessEvent` includes both `fnLoc` and `fnName`. All other events (`CompileError`, `CompileSkip`, `CompileDiagnostic`, `CompileUnexpectedThrow`, `PipelineError`) include `fnLoc` only. To resolve function names for non-success events, correlate `fnLoc` with AST function declarations parsed in Step 1.
+
+**Component vs Hook filtering:** Logger events do not include a `fnType` field. The compiler's internal `ReactFunctionType` is not exposed. To filter out Hooks and show only Components in CodeLens, use naming convention heuristics on the resolved function name: PascalCase → Component, `use*` → Hook (excluded). This is consistent with how the compiler itself identifies functions internally.
+
+**Error aggregation:** `CompileError` events are emitted per-detail, not per-function. A single function with 3 errors produces 3 separate `CompileError` events sharing the same `fnLoc`. The analyzer must group these by `fnLoc` to build the aggregated error list per component.
+
+**Non-error failure events:** `CompileUnexpectedThrow` and `PipelineError` carry a `data: string` (error message) rather than structured `CompilerDiagnostic`. These are normalized into the `status: 'error'` variant with a single synthetic diagnostic entry containing the error message.
 
 ### Step 3: Directive Extraction
 
@@ -121,7 +129,7 @@ interface DeclaredComponentAnalysis {
   location: { line: number; column: number }
   directive: 'use client' | 'use server' | null  // may differ from file-level for Server Actions
   compileResult:
-    | { status: 'success'; compiledCode: string; memoSlots: number; memoBlocks: number; memoValues: number }
+    | { status: 'success'; compiledCode: string; memoSlots: number; memoBlocks: number; memoValues: number; prunedMemoBlocks: number; prunedMemoValues: number }
     | { status: 'error'; diagnostics: CompilerDiagnostic[] }
     | { status: 'skip'; reason: string }
 }
@@ -273,7 +281,7 @@ Once per workspace open. Cached. Re-detected only on config file changes.
 | `vscode-languageserver-textdocument` | Document sync |
 | `@babel/core` | Babel transform pipeline (required for compiler integration) |
 | `@babel/parser` | Lightweight directive-only parsing for imported files |
-| `@babel/generator` | Code generation from compiled AST (for peek preview) |
+| `@babel/types` | Babel AST type definitions |
 | `babel-plugin-react-compiler` | Component identification + compilation |
 | `typescript` | Type checking + `ts.resolveModuleName()` for import resolution |
 | `rolldown` | Bundling (client + server) |
