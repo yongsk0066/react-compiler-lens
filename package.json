@@ -5,30 +5,82 @@
   "version": "0.0.1",
   "license": "MIT",
   "publisher": "yongsk0066",
-  "engines": { "vscode": "^1.96.0" },
-  "categories": ["Programming Languages"],
-  "activationEvents": ["onLanguage:javascriptreact", "onLanguage:typescriptreact"],
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:javascriptreact",
+    "onLanguage:typescriptreact"
+  ],
   "main": "./dist/client/extension.js",
   "contributes": {
     "commands": [
-      { "command": "reactCompilerLens.refresh", "title": "React Compiler Lens: Refresh" }
+      {
+        "command": "reactCompilerLens.refresh",
+        "title": "React Compiler Lens: Refresh"
+      },
+      {
+        "command": "reactCompilerLens.peekCompiled",
+        "title": "React Compiler Lens: Peek Compiled Output"
+      }
     ],
     "configuration": {
       "title": "React Compiler Lens",
       "properties": {
-        "reactCompilerLens.enabled": { "type": "boolean", "default": true, "description": "Enable/disable React Compiler Lens" },
-        "reactCompilerLens.codeLens.serverComponent": { "type": "boolean", "default": true, "description": "Show CodeLens for Server Components" },
-        "reactCompilerLens.codeLens.clientComponent": { "type": "boolean", "default": true, "description": "Show CodeLens for Client Components" },
-        "reactCompilerLens.codeLens.compilationStatus": { "type": "boolean", "default": true, "description": "Show compilation status in CodeLens" },
-        "reactCompilerLens.diagnostics.enabled": { "type": "boolean", "default": true, "description": "Show compilation errors in Problems panel" },
-        "reactCompilerLens.diagnostics.severity": { "type": "string", "enum": ["warning", "error", "info"], "default": "warning", "description": "Severity level for compilation diagnostics" },
-        "reactCompilerLens.framework": { "type": "string", "enum": ["auto", "nextjs", "none"], "default": "auto", "description": "Framework detection mode" }
+        "reactCompilerLens.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable React Compiler Lens"
+        },
+        "reactCompilerLens.codeLens.serverComponent": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show CodeLens for Server Components"
+        },
+        "reactCompilerLens.codeLens.clientComponent": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show CodeLens for Client Components"
+        },
+        "reactCompilerLens.codeLens.compilationStatus": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show compilation status in CodeLens"
+        },
+        "reactCompilerLens.diagnostics.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show compilation errors in Problems panel"
+        },
+        "reactCompilerLens.diagnostics.severity": {
+          "type": "string",
+          "enum": [
+            "warning",
+            "error",
+            "info"
+          ],
+          "default": "warning",
+          "description": "Severity level for compilation diagnostics"
+        },
+        "reactCompilerLens.framework": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "nextjs",
+            "none"
+          ],
+          "default": "auto",
+          "description": "Framework detection mode"
+        }
       }
     }
   },
   "scripts": {
-    "build": "rolldown -c rolldown.config.ts",
-    "watch": "rolldown -c rolldown.config.ts --watch",
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -37,9 +89,10 @@
   "devDependencies": {
     "@types/node": "^20",
     "@types/vscode": "^1.96.0",
+    "@vscode/vsce": "^3.0.0",
+    "esbuild": "^0.27.4",
     "rolldown": "latest",
     "typescript": "^5.9.0",
-    "vitest": "^3.0.0",
-    "@vscode/vsce": "^3.0.0"
+    "vitest": "^3.0.0"
   }
 }
