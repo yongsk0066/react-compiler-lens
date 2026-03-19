@@ -385,11 +385,13 @@ function buildDeclaredComponentLens(
   const { compileResult, name } = comp;
   const lens = CodeLens.create(range);
 
+  const line = Math.max(0, comp.location.line - 1);
+
   if (compileResult.status === 'success') {
     lens.command = {
       title: `${kindLabel} · Optimized`,
       command: 'reactCompilerLens.peekCompiled',
-      arguments: [uri, name],
+      arguments: [uri, name, line],
     };
   } else if (compileResult.status === 'error') {
     const count = compileResult.diagnostics.length;
@@ -398,7 +400,7 @@ function buildDeclaredComponentLens(
       : `Not Optimized (${count} ${count === 1 ? 'error' : 'errors'})`;
     lens.command = {
       title: `${kindLabel} · ${statusLabel}`,
-      command: 'workbench.actions.view.problems',
+      command: 'reactCompilerLens.showProblems',
     };
   } else {
     lens.command = {

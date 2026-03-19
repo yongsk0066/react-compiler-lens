@@ -23,6 +23,10 @@
         "title": "React Compiler Lens: Refresh"
       },
       {
+        "command": "reactCompilerLens.showProblems",
+        "title": "React Compiler Lens: Show Problems"
+      },
+      {
         "command": "reactCompilerLens.peekCompiled",
         "title": "React Compiler Lens: Peek Compiled Output"
       }

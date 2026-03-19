@@ -191,7 +191,6 @@ export async function compileFile(
     const result = await transformFromAstAsync(ast, code, {
       filename,
       highlightCode: false,
-      retainLines: true,
       plugins: [[BabelPluginReactCompiler, options]],
       sourceType: 'module',
       sourceFileName,
