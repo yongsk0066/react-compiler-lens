@@ -1,20 +1,6 @@
-import * as parser from '@babel/parser';
-import * as babel from '@babel/core';
-import type { NodePath } from '@babel/core';
 import type * as t from '@babel/types';
 import type { Directive } from '@react-compiler-lens/shared';
-
-function parseCode(code: string): parser.ParseResult<t.File> | null {
-  try {
-    return parser.parse(code, {
-      sourceType: 'module',
-      errorRecovery: true,
-      plugins: ['jsx', 'typescript'],
-    });
-  } catch {
-    return null;
-  }
-}
+import { parseCode, walkAst } from './ast';
 
 function directiveValue(value: string): Directive {
   if (value === 'use client') return 'use client';
@@ -47,49 +33,30 @@ export function extractFunctionDirectives(code: string): Map<string, Directive> 
   const ast = parseCode(code);
   if (!ast) return result;
 
-  try {
-    babel.traverse(ast, {
-      'FunctionDeclaration|FunctionExpression|ArrowFunctionExpression'(path: NodePath) {
-        const node = path.node as babel.types.Function & {
-          body: babel.types.BlockStatement & {
-            directives?: t.File['program']['directives'];
-          };
-        };
+  walkAst(ast.program as unknown as t.Node, (node) => {
+    const isFn = node.type === 'FunctionDeclaration'
+      || node.type === 'FunctionExpression'
+      || node.type === 'ArrowFunctionExpression';
+    if (!isFn) return;
 
-        if (node.body.type !== 'BlockStatement') return;
-        const directives = node.body.directives;
-        if (!directives || directives.length === 0) return;
+    const fn = node as t.FunctionDeclaration | t.FunctionExpression | t.ArrowFunctionExpression;
+    if (fn.body.type !== 'BlockStatement') return;
 
-        for (const directive of directives) {
-          const directiveResult = directiveValue(directive.value.value);
-          if (directiveResult !== null) {
-            let name: string | null = null;
+    const directives = (fn.body as t.BlockStatement & { directives?: t.Directive[] }).directives;
+    if (!directives?.length) return;
 
-            if (path.isFunctionDeclaration() && path.node.id) {
-              name = path.node.id.name;
-            } else if (path.isFunctionExpression() && path.node.id) {
-              name = path.node.id.name;
-            } else {
-              const parent = path.parent;
-              if (
-                parent &&
-                parent.type === 'VariableDeclarator' &&
-                parent.id.type === 'Identifier'
-              ) {
-                name = (parent.id as babel.types.Identifier).name;
-              }
-            }
+    // Resolve function name
+    let name: string | null = null;
+    if ((fn.type === 'FunctionDeclaration' || fn.type === 'FunctionExpression') && fn.id) {
+      name = fn.id.name;
+    }
+    if (!name) return;
 
-            if (name) {
-              result.set(name, directiveResult);
-            }
-          }
-        }
-      },
-    });
-  } catch {
-    // Gracefully handle traversal failures
-  }
+    for (const directive of directives) {
+      const d = directiveValue(directive.value.value);
+      if (d !== null) result.set(name, d);
+    }
+  });
 
   return result;
 }

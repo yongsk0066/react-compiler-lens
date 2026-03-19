@@ -1,6 +1,6 @@
-import * as parser from '@babel/parser';
 import type * as t from '@babel/types';
 import type { Framework, FileAnalysisResult, DeclaredComponentAnalysis, ImportedComponentAnalysis, CompileResult, DiagnosticInfo } from '@react-compiler-lens/shared';
+import { parseCode, walkAst, isComponentName } from './ast';
 import { compileFile, type CapturedEvent } from './compiler';
 import { extractFileDirective, extractFunctionDirectives } from './directives';
 import { ImportResolver } from './resolution';
@@ -68,16 +68,8 @@ export class Analyzer {
 
   // --- Private helpers ---
 
-  private parseAst(code: string): parser.ParseResult<t.File> | null {
-    try {
-      return parser.parse(code, {
-        sourceType: 'module',
-        errorRecovery: true,
-        plugins: ['jsx', 'typescript'],
-      });
-    } catch {
-      return null;
-    }
+  private parseAst(code: string) {
+    return parseCode(code);
   }
 
   private buildDeclaredComponents(
@@ -219,7 +211,7 @@ export class Analyzer {
 
   private buildImportedComponents(
     filePath: string,
-    ast: parser.ParseResult<t.File>,
+    ast: ReturnType<typeof parseCode> & object,
     code: string,
   ): ImportedComponentAnalysis[] {
     const imports = this.collectPascalCaseImports(ast);
@@ -238,7 +230,7 @@ export class Analyzer {
     });
   }
 
-  private collectPascalCaseImports(ast: parser.ParseResult<t.File>): ImportInfo[] {
+  private collectPascalCaseImports(ast: ReturnType<typeof parseCode> & object): ImportInfo[] {
     const imports: ImportInfo[] = [];
 
     for (const node of ast.program.body) {
@@ -246,12 +238,11 @@ export class Analyzer {
       const specifier = node.source.value;
 
       for (const spec of node.specifiers) {
-        const name =
-          spec.type === 'ImportDefaultSpecifier' || spec.type === 'ImportNamespaceSpecifier'
-            ? spec.local.name
-            : spec.local.name;
+        // Skip namespace imports (import * as Foo) — not a component itself
+        if (spec.type === 'ImportNamespaceSpecifier') continue;
 
-        if (!isPascalCase(name)) continue;
+        const name = spec.local.name;
+        if (!isComponentName(name)) continue;
 
         const loc = spec.loc ?? node.loc;
         imports.push({
@@ -269,12 +260,12 @@ export class Analyzer {
   }
 
   private collectJsxTagLocations(
-    ast: parser.ParseResult<t.File>,
+    ast: ReturnType<typeof parseCode> & object,
     componentNames: Set<string>,
   ): JsxUsageMap {
     const usage: JsxUsageMap = {};
 
-    traverseNode(ast.program as unknown as t.Node, node => {
+    walkAst(ast.program as unknown as t.Node, node => {
       if (node.type !== 'JSXOpeningElement') return;
       const jsxNode = node as t.JSXOpeningElement;
 
@@ -318,24 +309,3 @@ function cleanSkipReason(reason: string): string {
   return reason.replace(/\.$/, '');
 }
 
-function isPascalCase(name: string): boolean {
-  if (/^use[A-Z0-9]/.test(name)) return false;
-  return /^[A-Z]/.test(name);
-}
-
-function traverseNode(node: t.Node, visitor: (node: t.Node) => void): void {
-  visitor(node);
-  for (const key of Object.keys(node)) {
-    const child = (node as unknown as Record<string, unknown>)[key];
-    if (!child || typeof child !== 'object') continue;
-    if (Array.isArray(child)) {
-      for (const item of child) {
-        if (item && typeof item === 'object' && 'type' in item) {
-          traverseNode(item as t.Node, visitor);
-        }
-      }
-    } else if ('type' in child) {
-      traverseNode(child as t.Node, visitor);
-    }
-  }
-}

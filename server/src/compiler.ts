@@ -1,6 +1,7 @@
 import { parseAsync, transformFromAstAsync } from '@babel/core';
 import type * as t from '@babel/types';
 import type { LoggerEvent, PluginOptions } from 'babel-plugin-react-compiler';
+import { walkAst, isComponentName } from './ast';
 
 export interface CapturedEvent {
   kind: string;
@@ -19,151 +20,81 @@ function locKey(loc: t.SourceLocation): string {
   return `${loc.start.line}:${loc.start.column}-${loc.end.line}:${loc.end.column}`;
 }
 
-function isComponentName(name: string): boolean {
-  // PascalCase and not a hook (hooks start with use followed by uppercase/digit)
-  if (/^use[A-Z0-9]/.test(name)) return false;
-  return /^[A-Z]/.test(name);
-}
-
 export async function compileFile(
   code: string,
   filename: string,
 ): Promise<CompileFileResult> {
-  const sourceFileName = filename;
+  const empty: CompileFileResult = { events: [], compiledCode: null, getComponentEvents: () => [] };
 
-  // Step 1: Parse the code into an AST
+  // Step 1: Parse with Babel (needs @babel/core for transform pipeline)
   let ast: Awaited<ReturnType<typeof parseAsync>>;
   try {
     ast = await parseAsync(code, {
-      sourceFileName,
+      sourceFileName: filename,
       parserOpts: { plugins: ['typescript', 'jsx'] },
       sourceType: 'module',
       configFile: false,
       babelrc: false,
     });
   } catch {
-    return {
-      events: [],
-      compiledCode: null,
-      getComponentEvents: () => [],
-    };
+    return empty;
   }
+  if (!ast) return empty;
 
-  if (!ast) {
-    return {
-      events: [],
-      compiledCode: null,
-      getComponentEvents: () => [],
-    };
-  }
-
-  // Step 2: Build dual location maps by traversing the AST
-  // fnLocNames: node.loc → name  (used by most events)
-  // bodyLocNames: node.body.loc → name  (used by CompileSkip)
+  // Step 2: Build dual location maps for function name resolution
+  //   fnLocNames:   fn.loc      → name  (CompileSuccess/Error/etc.)
+  //   bodyLocNames: fn.body.loc → name  (CompileSkip uses body.loc)
   const fnLocNames = new Map<string, string>();
   const bodyLocNames = new Map<string, string>();
 
-  function collectFnNames(node: t.Node): void {
-    if (
-      node.type === 'FunctionDeclaration' ||
-      node.type === 'FunctionExpression' ||
-      node.type === 'ArrowFunctionExpression'
-    ) {
-      const fn = node as t.FunctionDeclaration | t.FunctionExpression | t.ArrowFunctionExpression;
-      let name: string | null = null;
+  walkAst(ast as unknown as t.Node, (node) => {
+    const isFn = node.type === 'FunctionDeclaration'
+      || node.type === 'FunctionExpression'
+      || node.type === 'ArrowFunctionExpression';
+    if (!isFn || !node.loc) return;
 
-      if (fn.type === 'FunctionDeclaration' && fn.id) {
-        name = fn.id.name;
-      } else if (fn.type === 'FunctionExpression' && fn.id) {
-        name = fn.id.name;
-      }
+    const fn = node as t.FunctionDeclaration | t.FunctionExpression | t.ArrowFunctionExpression;
+    const name = resolveFnName(fn);
+    if (!name) return;
 
-      if (name && fn.loc) {
-        fnLocNames.set(locKey(fn.loc), name);
-      }
-
-      if (fn.body && fn.body.type === 'BlockStatement' && fn.body.loc && name) {
-        bodyLocNames.set(locKey(fn.body.loc), name);
-      }
+    fnLocNames.set(locKey(fn.loc!), name);
+    if (fn.body.type === 'BlockStatement' && fn.body.loc) {
+      bodyLocNames.set(locKey(fn.body.loc), name);
     }
+  });
 
-    // Recurse into child nodes
-    for (const key of Object.keys(node)) {
-      const child = (node as unknown as Record<string, unknown>)[key];
-      if (child && typeof child === 'object') {
-        if (Array.isArray(child)) {
-          for (const item of child) {
-            if (item && typeof item === 'object' && 'type' in item) {
-              collectFnNames(item as t.Node);
-            }
-          }
-        } else if ('type' in child) {
-          collectFnNames(child as t.Node);
-        }
-      }
+  // Also map variable-assigned functions: const Foo = () => {}
+  walkAst(ast as unknown as t.Node, (node) => {
+    if (node.type !== 'VariableDeclarator') return;
+    const decl = node as t.VariableDeclarator;
+    if (decl.id.type !== 'Identifier' || !decl.init) return;
+    if (decl.init.type !== 'FunctionExpression' && decl.init.type !== 'ArrowFunctionExpression') return;
+
+    const name = decl.id.name;
+    const fn = decl.init;
+    if (fn.loc) fnLocNames.set(locKey(fn.loc), name);
+    if (fn.body.type === 'BlockStatement' && fn.body.loc) {
+      bodyLocNames.set(locKey(fn.body.loc), name);
     }
-  }
+  });
 
-  // Also collect variable declarator → function assignments, e.g. const Foo = () => {}
-  function collectVariableDeclarators(node: t.Node, parentName?: string): void {
-    if (node.type === 'VariableDeclarator') {
-      const decl = node as t.VariableDeclarator;
-      if (
-        decl.id.type === 'Identifier' &&
-        decl.init &&
-        (decl.init.type === 'FunctionExpression' || decl.init.type === 'ArrowFunctionExpression')
-      ) {
-        const name = (decl.id as t.Identifier).name;
-        const fn = decl.init as t.FunctionExpression | t.ArrowFunctionExpression;
-        if (fn.loc) {
-          fnLocNames.set(locKey(fn.loc), name);
-        }
-        if (fn.body && fn.body.type === 'BlockStatement' && fn.body.loc) {
-          bodyLocNames.set(locKey(fn.body.loc), name);
-        }
-      }
-    }
-
-    for (const key of Object.keys(node)) {
-      if (key === 'type') continue;
-      const child = (node as unknown as Record<string, unknown>)[key];
-      if (child && typeof child === 'object') {
-        if (Array.isArray(child)) {
-          for (const item of child) {
-            if (item && typeof item === 'object' && 'type' in item) {
-              collectVariableDeclarators(item as t.Node);
-            }
-          }
-        } else if ('type' in child) {
-          collectVariableDeclarators(child as t.Node);
-        }
-      }
-    }
-  }
-
-  collectFnNames(ast as unknown as t.Node);
-  collectVariableDeclarators(ast as unknown as t.Node);
-
-  // Step 3: Run babel-plugin-react-compiler and capture logger events
+  // Step 3: Run React Compiler and capture logger events
   const capturedEvents: CapturedEvent[] = [];
 
   const BabelPluginReactCompiler =
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ((await import('babel-plugin-react-compiler')) as any).default ??
-    (await import('babel-plugin-react-compiler'));
+    ((await import('babel-plugin-react-compiler')) as any).default
+    ?? (await import('babel-plugin-react-compiler'));
 
   const options: Partial<PluginOptions> = {
     panicThreshold: 'none',
     logger: {
       logEvent(_filename: string | null, event: LoggerEvent) {
-        // Resolve the function name from location maps
-        let fnName: string | null = null;
+        if (event.kind === 'Timing') return;
 
-        // CompileSuccess events already have fnName
+        let fnName: string | null = null;
         if (event.kind === 'CompileSuccess' && event.fnName) {
           fnName = event.fnName;
-        } else if (event.kind !== 'Timing') {
-          // For events with fnLoc, try fnLocNames first, then bodyLocNames
+        } else {
           const fnLoc = (event as { fnLoc?: t.SourceLocation | null }).fnLoc;
           if (fnLoc) {
             const key = locKey(fnLoc);
@@ -171,17 +102,8 @@ export async function compileFile(
           }
         }
 
-        const fnLoc =
-          event.kind !== 'Timing'
-            ? ((event as { fnLoc?: t.SourceLocation | null }).fnLoc ?? null)
-            : null;
-
-        capturedEvents.push({
-          kind: event.kind,
-          fnLoc,
-          fnName,
-          raw: event,
-        });
+        const fnLoc = (event as { fnLoc?: t.SourceLocation | null }).fnLoc ?? null;
+        capturedEvents.push({ kind: event.kind, fnLoc, fnName, raw: event });
       },
     },
   };
@@ -193,23 +115,29 @@ export async function compileFile(
       highlightCode: false,
       plugins: [[BabelPluginReactCompiler, options]],
       sourceType: 'module',
-      sourceFileName,
+      sourceFileName: filename,
       configFile: false,
       babelrc: false,
     });
     compiledCode = result?.code ?? null;
   } catch {
-    // Transformation failed; return whatever events were captured before the error
+    // Transformation failed — events already captured via logger
   }
 
   return {
     events: capturedEvents,
     compiledCode,
-    getComponentEvents(): CapturedEvent[] {
-      return capturedEvents.filter(e => {
-        if (!e.fnName) return false;
-        return isComponentName(e.fnName);
-      });
+    getComponentEvents() {
+      return capturedEvents.filter(e => e.fnName && isComponentName(e.fnName));
     },
   };
+}
+
+function resolveFnName(
+  fn: t.FunctionDeclaration | t.FunctionExpression | t.ArrowFunctionExpression,
+): string | null {
+  if ((fn.type === 'FunctionDeclaration' || fn.type === 'FunctionExpression') && fn.id) {
+    return fn.id.name;
+  }
+  return null;
 }

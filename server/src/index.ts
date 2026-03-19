@@ -82,8 +82,8 @@ function md5(content: string): string {
 
 function getKindLabel(directive: Directive, framework: Framework): string {
   if (directive === 'use client') return 'Client Component';
-  if (directive === 'use server') return 'Server Component';
-  // null directive
+  if (directive === 'use server') return 'Server Action';
+  // null directive — in Next.js, no directive means Server Component
   if (framework === 'nextjs') return 'Server Component';
   return 'Component';
 }
@@ -224,8 +224,13 @@ async function runAnalysis(document: TextDocument): Promise<void> {
   if (contentHashCache.get(uri) === hash) return;
   contentHashCache.set(uri, hash);
 
-  // Convert URI to file path
-  const filePath = uri.startsWith('file://') ? decodeURIComponent(uri.slice(7)) : uri;
+  // Convert URI to file path (cross-platform: handles file:///C:/... on Windows)
+  let filePath: string;
+  try {
+    filePath = new URL(uri).pathname;
+  } catch {
+    filePath = uri;
+  }
 
   let result: FileAnalysisResult;
   try {
