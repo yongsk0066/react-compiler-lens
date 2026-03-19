@@ -1,8 +1,17 @@
 import * as vscode from 'vscode';
 import type { LanguageClient } from 'vscode-languageclient/node';
 
+const MAX_CACHE_SIZE = 10;
 const compiledCodeCache = new Map<string, string>();
 const compiledCodeChangeEmitter = new vscode.EventEmitter<vscode.Uri>();
+
+function cacheSet(key: string, value: string): void {
+  if (compiledCodeCache.size >= MAX_CACHE_SIZE && !compiledCodeCache.has(key)) {
+    const oldest = compiledCodeCache.keys().next().value!;
+    compiledCodeCache.delete(oldest);
+  }
+  compiledCodeCache.set(key, value);
+}
 
 /**
  * Build a virtual document URI that VS Code recognizes as TypeScript React.
@@ -45,7 +54,7 @@ export function registerCommands(context: vscode.ExtensionContext, client: Langu
           return;
         }
 
-        compiledCodeCache.set(fileUri, code);
+        cacheSet(fileUri, code);
         const uri = compiledUri(fileUri);
         compiledCodeChangeEmitter.fire(uri);
 

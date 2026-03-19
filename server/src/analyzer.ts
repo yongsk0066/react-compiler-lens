@@ -30,29 +30,22 @@ export class Analyzer {
   }
 
   async analyze(filePath: string, code: string): Promise<FileAnalysisResult> {
-    // Step 1: Run the React Compiler to get events and compiled output
     const { events, compiledCode, getComponentEvents } = await compileFile(code, filePath);
 
-    // Step 2: Extract directives (file-level and function-level)
-    const fileDirective = extractFileDirective(code);
-    const functionDirectives = extractFunctionDirectives(code);
+    const ast = parseCode(code);
+    const fileDirective = extractFileDirective(code, ast ?? undefined);
+    const functionDirectives = extractFunctionDirectives(code, ast ?? undefined);
 
-    // Step 3: Parse the file with @babel/parser for import/JSX analysis
-    const ast = this.parseAst(code);
-
-    // Step 4: Build declared components from compiler events
     const declaredComponents = this.buildDeclaredComponents(
       getComponentEvents(),
       fileDirective,
       functionDirectives,
     );
 
-    // Step 5: Build imported components with resolved directives and JSX locations
     const importedComponents = ast
       ? this.buildImportedComponents(filePath, ast, code)
       : [];
 
-    // Step 6: Collect CompileDiagnostic events as informational diagnostics
     const compilerDiagnostics = this.collectCompilerDiagnostics(events);
 
     return {
@@ -66,18 +59,11 @@ export class Analyzer {
     };
   }
 
-  // --- Private helpers ---
-
-  private parseAst(code: string) {
-    return parseCode(code);
-  }
-
   private buildDeclaredComponents(
     componentEvents: CapturedEvent[],
     fileDirective: ReturnType<typeof extractFileDirective>,
     functionDirectives: ReturnType<typeof extractFunctionDirectives>,
   ): DeclaredComponentAnalysis[] {
-    // Group events by fnName
     const grouped = new Map<string, CapturedEvent[]>();
     for (const event of componentEvents) {
       if (!event.fnName) continue;
@@ -157,7 +143,6 @@ export class Analyzer {
       let line: number | null = null;
       let column: number | null = null;
 
-      // CompilerErrorDetail has .loc; CompilerDiagnostic has .primaryLocation()
       if (detail.loc !== undefined) {
         const loc = detail.loc;
         if (loc && typeof loc === 'object' && 'start' in loc) {
@@ -218,14 +203,15 @@ export class Analyzer {
     const jsxUsage = this.collectJsxTagLocations(ast, new Set(imports.map(i => i.name)));
 
     return imports.map(imp => {
-      const directive = this.importResolver.resolveImportDirective(filePath, imp.specifier, imp.name);
-      const sourceFilePath = this.importResolver.resolveModulePath(filePath, imp.specifier) ?? '';
+      const { directive, resolvedPath } = this.importResolver.resolveImportWithPath(
+        filePath, imp.specifier, imp.name,
+      );
       return {
         name: imp.name,
         importLocation: imp.importLocation,
         jsxLocations: jsxUsage[imp.name] ?? [],
         directive,
-        sourceFilePath,
+        sourceFilePath: resolvedPath ?? '',
       };
     });
   }
@@ -238,7 +224,6 @@ export class Analyzer {
       const specifier = node.source.value;
 
       for (const spec of node.specifiers) {
-        // Skip namespace imports (import * as Foo) — not a component itself
         if (spec.type === 'ImportNamespaceSpecifier') continue;
 
         const name = spec.local.name;
@@ -273,7 +258,6 @@ export class Analyzer {
       if (jsxNode.name.type === 'JSXIdentifier') {
         name = jsxNode.name.name;
       } else if (jsxNode.name.type === 'JSXMemberExpression') {
-        // e.g. Foo.Bar — use the root object name
         let obj = jsxNode.name.object;
         while (obj.type === 'JSXMemberExpression') obj = obj.object;
         name = obj.name;
@@ -291,21 +275,12 @@ export class Analyzer {
   }
 }
 
-// --- Module-level helpers ---
-
-/**
- * Clean up skip reason from React Compiler.
- * The compiler may stringify directive AST nodes as [object Object].
- */
 function cleanSkipReason(reason: string): string {
   if (reason.includes('[object Object]')) {
-    // Extract the directive pattern — common: "Skipped due to '...' directive"
     if (reason.toLowerCase().includes('directive')) {
       return 'use no memo';
     }
     return 'opt-out directive';
   }
-  // Strip trailing period for cleaner display
   return reason.replace(/\.$/, '');
 }
-

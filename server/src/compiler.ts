@@ -1,7 +1,7 @@
 import { parseAsync, transformFromAstAsync } from '@babel/core';
 import type * as t from '@babel/types';
 import type { LoggerEvent, PluginOptions } from 'babel-plugin-react-compiler';
-import { walkAst, isComponentName } from './ast';
+import { walkAst, isFunctionNode, isComponentName } from './ast';
 
 export interface CapturedEvent {
   kind: string;
@@ -16,6 +16,15 @@ export interface CompileFileResult {
   getComponentEvents(): CapturedEvent[];
 }
 
+let cachedPlugin: unknown = null;
+
+async function getReactCompilerPlugin(): Promise<unknown> {
+  if (cachedPlugin) return cachedPlugin;
+  const mod = await import('babel-plugin-react-compiler');
+  cachedPlugin = (mod as any).default ?? mod;
+  return cachedPlugin;
+}
+
 function locKey(loc: t.SourceLocation): string {
   return `${loc.start.line}:${loc.start.column}-${loc.end.line}:${loc.end.column}`;
 }
@@ -26,7 +35,6 @@ export async function compileFile(
 ): Promise<CompileFileResult> {
   const empty: CompileFileResult = { events: [], compiledCode: null, getComponentEvents: () => [] };
 
-  // Step 1: Parse with Babel (needs @babel/core for transform pipeline)
   let ast: Awaited<ReturnType<typeof parseAsync>>;
   try {
     ast = await parseAsync(code, {
@@ -41,49 +49,35 @@ export async function compileFile(
   }
   if (!ast) return empty;
 
-  // Step 2: Build dual location maps for function name resolution
-  //   fnLocNames:   fn.loc      → name  (CompileSuccess/Error/etc.)
-  //   bodyLocNames: fn.body.loc → name  (CompileSkip uses body.loc)
   const fnLocNames = new Map<string, string>();
   const bodyLocNames = new Map<string, string>();
 
   walkAst(ast as unknown as t.Node, (node) => {
-    const isFn = node.type === 'FunctionDeclaration'
-      || node.type === 'FunctionExpression'
-      || node.type === 'ArrowFunctionExpression';
-    if (!isFn || !node.loc) return;
+    if (isFunctionNode(node) && node.loc) {
+      const name = resolveFnName(node);
+      if (name) {
+        fnLocNames.set(locKey(node.loc!), name);
+        if (node.body.type === 'BlockStatement' && node.body.loc) {
+          bodyLocNames.set(locKey(node.body.loc), name);
+        }
+      }
+    }
 
-    const fn = node as t.FunctionDeclaration | t.FunctionExpression | t.ArrowFunctionExpression;
-    const name = resolveFnName(fn);
-    if (!name) return;
-
-    fnLocNames.set(locKey(fn.loc!), name);
-    if (fn.body.type === 'BlockStatement' && fn.body.loc) {
-      bodyLocNames.set(locKey(fn.body.loc), name);
+    if (node.type === 'VariableDeclarator') {
+      const decl = node as t.VariableDeclarator;
+      if (decl.id.type === 'Identifier' && decl.init && isFunctionNode(decl.init)) {
+        const name = decl.id.name;
+        const fn = decl.init as t.FunctionExpression | t.ArrowFunctionExpression;
+        if (fn.loc) fnLocNames.set(locKey(fn.loc), name);
+        if (fn.body.type === 'BlockStatement' && fn.body.loc) {
+          bodyLocNames.set(locKey(fn.body.loc), name);
+        }
+      }
     }
   });
 
-  // Also map variable-assigned functions: const Foo = () => {}
-  walkAst(ast as unknown as t.Node, (node) => {
-    if (node.type !== 'VariableDeclarator') return;
-    const decl = node as t.VariableDeclarator;
-    if (decl.id.type !== 'Identifier' || !decl.init) return;
-    if (decl.init.type !== 'FunctionExpression' && decl.init.type !== 'ArrowFunctionExpression') return;
-
-    const name = decl.id.name;
-    const fn = decl.init;
-    if (fn.loc) fnLocNames.set(locKey(fn.loc), name);
-    if (fn.body.type === 'BlockStatement' && fn.body.loc) {
-      bodyLocNames.set(locKey(fn.body.loc), name);
-    }
-  });
-
-  // Step 3: Run React Compiler and capture logger events
   const capturedEvents: CapturedEvent[] = [];
-
-  const BabelPluginReactCompiler =
-    ((await import('babel-plugin-react-compiler')) as any).default
-    ?? (await import('babel-plugin-react-compiler'));
+  const BabelPluginReactCompiler = await getReactCompilerPlugin();
 
   const options: Partial<PluginOptions> = {
     panicThreshold: 'none',
