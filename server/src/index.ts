@@ -339,15 +339,11 @@ connection.onCodeLens(params => {
     const range = Range.create(line, col, line, col);
 
     if (config.compilationStatus) {
-      const lens = buildDeclaredComponentLens(comp, kindLabel, range, uri);
-      lenses.push(lens);
+      lenses.push(buildDeclaredComponentLens(comp, kindLabel, range, uri));
     } else {
-      // Show kind only, no compile status, no command
-      lenses.push(CodeLens.create(range, {
-        title: kindLabel,
-        command: '',
-        arguments: [],
-      }));
+      const lens = CodeLens.create(range);
+      lens.command = { title: kindLabel, command: '' };
+      lenses.push(lens);
     }
   }
 
@@ -369,11 +365,9 @@ connection.onCodeLens(params => {
       const line = Math.max(0, imp.importLocation.line - 1);
       const col = imp.importLocation.column;
       const range = Range.create(line, col, line, col);
-      lenses.push(CodeLens.create(range, {
-        title: kindLabel,
-        command: '',
-        arguments: [],
-      }));
+      const lens = CodeLens.create(range);
+      lens.command = { title: kindLabel, command: '' };
+      lenses.push(lens);
     }
 
     // JSX usage lenses
@@ -381,11 +375,9 @@ connection.onCodeLens(params => {
       const line = Math.max(0, jsxLoc.line - 1);
       const col = jsxLoc.column;
       const range = Range.create(line, col, line, col);
-      lenses.push(CodeLens.create(range, {
-        title: kindLabel,
-        command: '',
-        arguments: [],
-      }));
+      const lens = CodeLens.create(range);
+      lens.command = { title: kindLabel, command: '' };
+      lenses.push(lens);
     }
   }
 
@@ -399,36 +391,31 @@ function buildDeclaredComponentLens(
   uri: string,
 ): CodeLens {
   const { compileResult, name } = comp;
+  const lens = CodeLens.create(range);
 
   if (compileResult.status === 'success') {
-    const statusLabel = 'Optimized';
-    return CodeLens.create(range, {
-      title: `${kindLabel} · ${statusLabel}`,
+    lens.command = {
+      title: `${kindLabel} · Optimized`,
       command: 'reactCompilerLens.peekCompiled',
       arguments: [uri, name],
-    });
-  }
-
-  if (compileResult.status === 'error') {
+    };
+  } else if (compileResult.status === 'error') {
     const count = compileResult.diagnostics.length;
-    const statusLabel =
-      count === 0
-        ? 'Not Optimized'
-        : `Not Optimized (${count} ${count === 1 ? 'error' : 'errors'})`;
-    return CodeLens.create(range, {
+    const statusLabel = count === 0
+      ? 'Not Optimized'
+      : `Not Optimized (${count} ${count === 1 ? 'error' : 'errors'})`;
+    lens.command = {
       title: `${kindLabel} · ${statusLabel}`,
       command: 'workbench.actions.view.problems',
-      arguments: [],
-    });
+    };
+  } else {
+    lens.command = {
+      title: `${kindLabel} · Skipped: "${compileResult.reason}"`,
+      command: '',
+    };
   }
 
-  // skip
-  const statusLabel = `Skipped: "${compileResult.reason}"`;
-  return CodeLens.create(range, {
-    title: `${kindLabel} · ${statusLabel}`,
-    command: '',
-    arguments: [],
-  });
+  return lens;
 }
 
 // -------------------------------------------------------------------
