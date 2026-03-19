@@ -1,69 +1,75 @@
 import * as vscode from 'vscode';
 import type { LanguageClient } from 'vscode-languageclient/node';
 
+/** Cache of compiled code keyed by original file URI */
+const compiledCodeCache = new Map<string, string>();
+const compiledCodeChangeEmitter = new vscode.EventEmitter<vscode.Uri>();
+
+/**
+ * Build a virtual document URI for a given file URI.
+ * Format: react-compiler-lens:{fileUri}
+ * Simple scheme — the fileUri IS the path, no encoding gymnastics.
+ */
+function compiledUri(fileUri: string): vscode.Uri {
+  return vscode.Uri.from({ scheme: 'react-compiler-lens', path: fileUri });
+}
+
 export function registerCommands(context: vscode.ExtensionContext, client: LanguageClient): void {
+  // Virtual document provider — serves compiled code for peek preview
+  context.subscriptions.push(
+    vscode.workspace.registerTextDocumentContentProvider('react-compiler-lens', {
+      onDidChange: compiledCodeChangeEmitter.event,
+      provideTextDocumentContent(uri: vscode.Uri): string {
+        return compiledCodeCache.get(uri.path) ?? '// No compiled output available';
+      },
+    }),
+  );
+
+  // Peek compiled output command
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'reactCompilerLens.peekCompiled',
       async (fileUri: string, _componentName: string) => {
         // Fetch compiled code from LSP server on demand
-        const response = await client.sendRequest<{ code: string | null }>(
-          'react-compiler-lens/getCompiledCode',
-          { uri: fileUri },
-        );
+        let code: string | null = null;
+        try {
+          const response = await client.sendRequest<{ code: string | null }>(
+            'react-compiler-lens/getCompiledCode',
+            { uri: fileUri },
+          );
+          code = response.code;
+        } catch {
+          // Request failed
+        }
 
-        if (!response.code) {
+        if (!code) {
           vscode.window.showInformationMessage('No compiled output available for this file.');
           return;
         }
 
-        // Write compiled code to a virtual document and show in peek
-        const compiledUri = vscode.Uri.parse(
-          `react-compiler-lens://compiled/${encodeURIComponent(fileUri)}`,
-        );
+        // Update virtual document cache
+        compiledCodeCache.set(fileUri, code);
+        compiledCodeChangeEmitter.fire(compiledUri(fileUri));
 
-        // Update the virtual document cache
-        compiledCodeCache.set(fileUri, response.code);
-        compiledCodeChangeEmitter.fire(compiledUri);
-
-        // Get the active editor position for peek anchor
+        // Show in peek view anchored at current cursor
         const editor = vscode.window.activeTextEditor;
         if (!editor) return;
-
-        const position = editor.selection.active;
-        const location = new vscode.Location(compiledUri, new vscode.Position(0, 0));
 
         await vscode.commands.executeCommand(
           'editor.action.peekLocations',
           editor.document.uri,
-          position,
-          [location],
+          editor.selection.active,
+          [new vscode.Location(compiledUri(fileUri), new vscode.Position(0, 0))],
           'peek',
         );
       },
     ),
   );
 
+  // Manual refresh command
   context.subscriptions.push(
     vscode.commands.registerCommand('reactCompilerLens.refresh', () => {
       vscode.commands.executeCommand('workbench.action.reloadWindow');
     }),
   );
-
-  // Register virtual document provider for compiled code
-  const provider: vscode.TextDocumentContentProvider = {
-    onDidChange: compiledCodeChangeEmitter.event,
-    provideTextDocumentContent(uri: vscode.Uri): string {
-      const fileUri = decodeURIComponent(uri.path.replace('/compiled/', ''));
-      return compiledCodeCache.get(fileUri) ?? '// No compiled output available';
-    },
-  };
-
-  context.subscriptions.push(
-    vscode.workspace.registerTextDocumentContentProvider('react-compiler-lens', provider),
-  );
 }
-
-// Module-level cache shared between command handler and document provider
-const compiledCodeCache = new Map<string, string>();
-const compiledCodeChangeEmitter = new vscode.EventEmitter<vscode.Uri>();

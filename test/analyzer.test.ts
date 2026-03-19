@@ -89,4 +89,98 @@ describe('Analyzer', () => {
     expect(buttonImport).toBeDefined();
     expect(buttonImport!.jsxLocations.length).toBe(2);
   });
+
+  it('reports skip status for "use no memo" component', async () => {
+    const filePath = path.join(tmpDir, 'NoMemo.tsx');
+    const code = [
+      '"use client";',
+      'export function NoMemo() {',
+      '  "use no memo";',
+      '  return <div>skipped</div>;',
+      '}',
+    ].join('\n');
+    fs.writeFileSync(filePath, code);
+
+    const analyzer = new Analyzer({ framework: 'none' });
+    const result = await analyzer.analyze(filePath, code);
+    const comp = result.declaredComponents.find(c => c.name === 'NoMemo');
+    expect(comp).toBeDefined();
+    expect(comp!.compileResult.status).toBe('skip');
+    if (comp!.compileResult.status === 'skip') {
+      expect(comp!.compileResult.reason).not.toContain('[object Object]');
+    }
+  });
+
+  it('reports skip with clean reason for "use no forget"', async () => {
+    const filePath = path.join(tmpDir, 'Legacy.tsx');
+    const code = [
+      'export function Legacy() {',
+      '  "use no forget";',
+      '  return <span />;',
+      '}',
+    ].join('\n');
+    fs.writeFileSync(filePath, code);
+
+    const analyzer = new Analyzer({ framework: 'none' });
+    const result = await analyzer.analyze(filePath, code);
+    const comp = result.declaredComponents.find(c => c.name === 'Legacy');
+    expect(comp).toBeDefined();
+    expect(comp!.compileResult.status).toBe('skip');
+    if (comp!.compileResult.status === 'skip') {
+      expect(comp!.compileResult.reason).not.toContain('[object Object]');
+    }
+  });
+
+  it('handles mixed compiled + skipped components in one file', async () => {
+    const filePath = path.join(tmpDir, 'Mixed.tsx');
+    const code = [
+      'import { useState } from "react";',
+      'export function Active() {',
+      '  const [x, setX] = useState(0);',
+      '  return <div onClick={() => setX(x + 1)}>{x}</div>;',
+      '}',
+      'export function Skipped() {',
+      '  "use no memo";',
+      '  return <span />;',
+      '}',
+    ].join('\n');
+    fs.writeFileSync(filePath, code);
+
+    const analyzer = new Analyzer({ framework: 'none' });
+    const result = await analyzer.analyze(filePath, code);
+
+    const active = result.declaredComponents.find(c => c.name === 'Active');
+    const skipped = result.declaredComponents.find(c => c.name === 'Skipped');
+    expect(active?.compileResult.status).toBe('success');
+    expect(skipped?.compileResult.status).toBe('skip');
+    // File still has compiled output
+    expect(result.compiledCode).toBeTruthy();
+  });
+
+  it('handles "use server" file directive', async () => {
+    const filePath = path.join(tmpDir, 'actions.tsx');
+    const code = [
+      '"use server";',
+      'export async function createUser() {',
+      '  return { id: 1 };',
+      '}',
+    ].join('\n');
+    fs.writeFileSync(filePath, code);
+
+    const analyzer = new Analyzer({ framework: 'none' });
+    const result = await analyzer.analyze(filePath, code);
+    expect(result.directive).toBe('use server');
+  });
+
+  it('defaults to server component in nextjs when no directive', async () => {
+    const filePath = path.join(tmpDir, 'Page.tsx');
+    const code = 'export default function Page() { return <div />; }';
+    fs.writeFileSync(filePath, code);
+
+    const analyzer = new Analyzer({ framework: 'nextjs' });
+    const result = await analyzer.analyze(filePath, code);
+    expect(result.framework).toBe('nextjs');
+    // No directive — client should interpret as Server Component based on framework
+    expect(result.directive).toBeNull();
+  });
 });
