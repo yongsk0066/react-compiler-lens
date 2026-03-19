@@ -19,6 +19,9 @@ export function activate(context: vscode.ExtensionContext): void {
       { scheme: 'file', language: 'typescriptreact' },
     ],
     progressOnInitialization: true,
+    synchronize: {
+      configurationSection: 'reactCompilerLens',
+    },
   };
 
   try {

@@ -5,6 +5,14 @@
   "version": "0.0.1",
   "license": "MIT",
   "publisher": "yongsk0066",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yongsk0066/react-compiler-lens"
+  },
+  "homepage": "https://github.com/yongsk0066/react-compiler-lens#readme",
+  "bugs": "https://github.com/yongsk0066/react-compiler-lens/issues",
+  "keywords": ["react", "react-compiler", "codelens", "server-components", "nextjs"],
+  "preview": true,
   "engines": {
     "vscode": "^1.110.0"
   },

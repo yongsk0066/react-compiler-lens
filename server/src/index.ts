@@ -47,6 +47,7 @@ const documents = new TextDocuments(TextDocument);
 let analyzer: Analyzer | null = null;
 let workspaceRoot: string | null = null;
 let config: Config = { ...defaultConfig };
+let hasCodeLensRefresh = false;
 
 const analysisCache = new Map<string, FileAnalysisResult>();
 const contentHashCache = new Map<string, string>();
@@ -92,6 +93,8 @@ function createLabelOnlyLens(line: number, col: number, label: string): CodeLens
 }
 
 connection.onInitialize((params: InitializeParams): InitializeResult => {
+  hasCodeLensRefresh = !!params.capabilities.workspace?.codeLens?.refreshSupport;
+
   workspaceRoot = params.rootUri
     ? params.rootUri.replace(/^file:\/\//, '')
     : params.rootPath ?? null;
@@ -195,7 +198,8 @@ async function runAnalysis(document: TextDocument): Promise<void> {
   let result: FileAnalysisResult;
   try {
     result = await analyzer.analyze(filePath, content);
-  } catch {
+  } catch (err) {
+    connection.console.error(`Analysis failed for ${uri}: ${err instanceof Error ? err.message : String(err)}`);
     return;
   }
 
@@ -205,6 +209,10 @@ async function runAnalysis(document: TextDocument): Promise<void> {
     publishDiagnostics(uri, result);
   } else {
     connection.sendDiagnostics({ uri, diagnostics: [] });
+  }
+
+  if (hasCodeLensRefresh) {
+    connection.sendRequest('workspace/codeLens/refresh');
   }
 }
 
@@ -250,6 +258,15 @@ connection.onRequest(
     return { code: result?.compiledCode ?? null };
   },
 );
+
+connection.onRequest('react-compiler-lens/refresh', () => {
+  analysisCache.clear();
+  contentHashCache.clear();
+  for (const doc of documents.all()) {
+    scheduleAnalysis(doc);
+  }
+  return { ok: true };
+});
 
 connection.onCodeLens(params => {
   const uri = params.textDocument.uri;

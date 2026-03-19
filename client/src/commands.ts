@@ -71,8 +71,8 @@ export function registerCommands(context: vscode.ExtensionContext, client: Langu
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('reactCompilerLens.refresh', () => {
-      vscode.commands.executeCommand('workbench.action.reloadWindow');
+    vscode.commands.registerCommand('reactCompilerLens.refresh', async () => {
+      await client.sendRequest('react-compiler-lens/refresh');
     }),
   );
 }
