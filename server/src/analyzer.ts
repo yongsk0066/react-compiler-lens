@@ -52,6 +52,9 @@ export class Analyzer {
       ? this.buildImportedComponents(filePath, ast, code)
       : [];
 
+    // Step 6: Collect CompileDiagnostic events as informational diagnostics
+    const compilerDiagnostics = this.collectCompilerDiagnostics(events);
+
     return {
       filePath,
       directive: fileDirective,
@@ -59,6 +62,7 @@ export class Analyzer {
       declaredComponents,
       importedComponents,
       compiledCode,
+      compilerDiagnostics,
     };
   }
 
@@ -123,7 +127,6 @@ export class Analyzer {
       };
       return {
         status: 'success',
-        compiledCode: '',
         memoSlots: raw.memoSlots,
         memoBlocks: raw.memoBlocks,
         memoValues: raw.memoValues,
@@ -196,6 +199,24 @@ export class Analyzer {
     return [];
   }
 
+  private collectCompilerDiagnostics(events: CapturedEvent[]): DiagnosticInfo[] {
+    return events
+      .filter(e => e.kind === 'CompileDiagnostic')
+      .map(e => {
+        const raw = e.raw as { kind: 'CompileDiagnostic'; detail: unknown };
+        const detail = raw.detail as {
+          reason?: string;
+          loc?: { start?: { line?: number; column?: number } } | null;
+        };
+        return {
+          message: typeof detail.reason === 'string' ? detail.reason : String(detail),
+          line: detail.loc?.start?.line ?? e.fnLoc?.start.line ?? null,
+          column: detail.loc?.start?.column ?? e.fnLoc?.start.column ?? null,
+          severity: 'info' as const,
+        };
+      });
+  }
+
   private buildImportedComponents(
     filePath: string,
     ast: parser.ParseResult<t.File>,
@@ -205,7 +226,7 @@ export class Analyzer {
     const jsxUsage = this.collectJsxTagLocations(ast, new Set(imports.map(i => i.name)));
 
     return imports.map(imp => {
-      const directive = this.importResolver.resolveImportDirective(filePath, imp.specifier);
+      const directive = this.importResolver.resolveImportDirective(filePath, imp.specifier, imp.name);
       const sourceFilePath = this.importResolver.resolveModulePath(filePath, imp.specifier) ?? '';
       return {
         name: imp.name,

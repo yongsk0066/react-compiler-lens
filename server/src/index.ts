@@ -292,6 +292,18 @@ function publishDiagnostics(uri: string, result: FileAnalysisResult): void {
     }
   }
 
+  // CompileDiagnostic events → Information severity
+  for (const info of result.compilerDiagnostics) {
+    const line = info.line !== null ? info.line - 1 : 0;
+    const col = info.column ?? 0;
+    diagnostics.push({
+      range: Range.create(line, col, line, col + 1),
+      severity: DiagnosticSeverity.Information,
+      source: 'react-compiler',
+      message: info.message,
+    });
+  }
+
   connection.sendDiagnostics({ uri, diagnostics });
 }
 

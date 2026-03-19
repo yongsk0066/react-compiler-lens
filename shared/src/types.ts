@@ -14,7 +14,6 @@ export type Framework = 'nextjs' | 'none';
 export type CompileResult =
   | {
       status: 'success';
-      compiledCode: string;
       memoSlots: number;
       memoBlocks: number;
       memoValues: number;
@@ -37,7 +36,7 @@ export interface DiagnosticInfo {
   message: string;
   line: number | null;
   column: number | null;
-  severity: 'error' | 'warning';
+  severity: 'error' | 'warning' | 'info';
 }
 
 /**
@@ -71,4 +70,6 @@ export interface FileAnalysisResult {
   declaredComponents: DeclaredComponentAnalysis[];
   importedComponents: ImportedComponentAnalysis[];
   compiledCode: string | null;
+  /** CompileDiagnostic events — warnings/suggestions from the compiler, not blocking. */
+  compilerDiagnostics: DiagnosticInfo[];
 }
