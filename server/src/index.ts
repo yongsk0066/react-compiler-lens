@@ -59,11 +59,10 @@ function md5(content: string): string {
   return crypto.createHash('md5').update(content).digest('hex');
 }
 
-function getKindLabel(directive: Directive, framework: Framework): string {
+function getKindLabel(directive: Directive): string | null {
   if (directive === 'use client') return 'Client Component';
   if (directive === 'use server') return 'Server Action';
-  if (framework === 'nextjs') return 'Server Component';
-  return 'Component';
+  return null;
 }
 
 function mapSeverity(severityStr: string): DiagnosticSeverity {
@@ -78,10 +77,16 @@ function mapSeverity(severityStr: string): DiagnosticSeverity {
   }
 }
 
-function shouldShowComponent(directive: Directive, framework: Framework, cfg: Config): boolean {
+function shouldShowDeclaredComponent(directive: Directive, cfg: Config): boolean {
   if (directive === 'use server' && !cfg.serverComponent) return false;
   if (directive === 'use client' && !cfg.clientComponent) return false;
-  if (directive === null && framework === 'nextjs' && !cfg.serverComponent) return false;
+  return true;
+}
+
+function shouldShowImportedComponent(directive: Directive, cfg: Config): boolean {
+  if (directive === null) return false;
+  if (directive === 'use server' && !cfg.serverComponent) return false;
+  if (directive === 'use client' && !cfg.clientComponent) return false;
   return true;
 }
 
@@ -277,24 +282,24 @@ connection.onCodeLens(params => {
   const lenses: CodeLens[] = [];
 
   for (const comp of result.declaredComponents) {
-    if (!shouldShowComponent(comp.directive, result.framework, config)) continue;
+    if (!shouldShowDeclaredComponent(comp.directive, config)) continue;
 
-    const kindLabel = getKindLabel(comp.directive, result.framework);
+    const kindLabel = getKindLabel(comp.directive);
     const line = Math.max(0, comp.location.line - 1);
     const col = comp.location.column;
 
     if (config.compilationStatus) {
       const range = Range.create(line, col, line, col);
       lenses.push(buildDeclaredComponentLens(comp, kindLabel, range, uri));
-    } else {
+    } else if (kindLabel) {
       lenses.push(createLabelOnlyLens(line, col, kindLabel));
     }
   }
 
   for (const imp of result.importedComponents) {
-    if (!shouldShowComponent(imp.directive, result.framework, config)) continue;
+    if (!shouldShowImportedComponent(imp.directive, config)) continue;
 
-    const kindLabel = getKindLabel(imp.directive, result.framework);
+    const kindLabel = getKindLabel(imp.directive)!;
 
     lenses.push(createLabelOnlyLens(
       Math.max(0, imp.importLocation.line - 1),
@@ -316,18 +321,19 @@ connection.onCodeLens(params => {
 
 function buildDeclaredComponentLens(
   comp: DeclaredComponentAnalysis,
-  kindLabel: string,
+  kindLabel: string | null,
   range: Range,
   uri: string,
 ): CodeLens {
   const { compileResult, name } = comp;
   const lens = CodeLens.create(range);
+  const prefix = kindLabel ? `${kindLabel} · ` : '';
 
   const line = Math.max(0, comp.location.line - 1);
 
   if (compileResult.status === 'success') {
     lens.command = {
-      title: `${kindLabel} · Optimized`,
+      title: `${prefix}Optimized`,
       command: 'reactCompilerLens.peekCompiled',
       arguments: [uri, name, line],
     };
@@ -337,12 +343,12 @@ function buildDeclaredComponentLens(
       ? 'Not Optimized'
       : `Not Optimized (${count} ${count === 1 ? 'error' : 'errors'})`;
     lens.command = {
-      title: `${kindLabel} · ${statusLabel}`,
+      title: `${prefix}${statusLabel}`,
       command: 'reactCompilerLens.showProblems',
     };
   } else {
     lens.command = {
-      title: `${kindLabel} · Skipped: "${compileResult.reason}"`,
+      title: `${prefix}Skipped: "${compileResult.reason}"`,
       command: '',
     };
   }

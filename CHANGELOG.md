@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.4 (2026-03-20)
+
+- Only show Server/Client labels when directive is explicitly present
+- Files without `"use client"` / `"use server"` no longer show misleading labels
+- Declared components still show compilation status (Optimized / Not Optimized / Skipped)
+- Use compiler classification for imported components (constants/types no longer show CodeLens)
+- Add `classifyFunctions` test suite
+
 ## 0.0.3 (2026-03-20)
 
 - Skip node_modules imports for Server/Client detection (prevents false positives like next/link)
