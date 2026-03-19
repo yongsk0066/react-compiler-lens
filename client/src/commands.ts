@@ -13,10 +13,6 @@ function cacheSet(key: string, value: string): void {
   compiledCodeCache.set(key, value);
 }
 
-/**
- * Build a virtual document URI that VS Code recognizes as TypeScript React.
- * The .tsx extension triggers automatic syntax highlighting.
- */
 function compiledUri(fileUri: string): vscode.Uri {
   return vscode.Uri.from({
     scheme: 'react-compiler-lens',
@@ -25,14 +21,12 @@ function compiledUri(fileUri: string): vscode.Uri {
 }
 
 function cacheKeyFromUri(uri: vscode.Uri): string {
-  // Extract original fileUri from /encoded.compiled.tsx
   const match = uri.path.match(/^\/(.+)\.compiled\.tsx$/);
   if (!match) return '';
   return decodeURIComponent(match[1]);
 }
 
 export function registerCommands(context: vscode.ExtensionContext, client: LanguageClient): void {
-  // Virtual document provider — serves compiled code with tsx syntax highlighting
   context.subscriptions.push(
     vscode.workspace.registerTextDocumentContentProvider('react-compiler-lens', {
       onDidChange: compiledCodeChangeEmitter.event,
@@ -43,7 +37,6 @@ export function registerCommands(context: vscode.ExtensionContext, client: Langu
     }),
   );
 
-  // Peek / Side tab compiled output
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'reactCompilerLens.peekCompiled',
@@ -71,14 +64,12 @@ export function registerCommands(context: vscode.ExtensionContext, client: Langu
     ),
   );
 
-  // Show Problems panel
   context.subscriptions.push(
     vscode.commands.registerCommand('reactCompilerLens.showProblems', async () => {
       await vscode.commands.executeCommand('workbench.actions.view.problems');
     }),
   );
 
-  // Manual refresh
   context.subscriptions.push(
     vscode.commands.registerCommand('reactCompilerLens.refresh', () => {
       vscode.commands.executeCommand('workbench.action.reloadWindow');
@@ -86,7 +77,6 @@ export function registerCommands(context: vscode.ExtensionContext, client: Langu
   );
 }
 
-/** Fetch compiled code from LSP server on demand. */
 async function fetchCompiledCode(client: LanguageClient, fileUri: string): Promise<string | null> {
   try {
     const response = await client.sendRequest<{ code: string | null }>(
@@ -99,7 +89,6 @@ async function fetchCompiledCode(client: LanguageClient, fileUri: string): Promi
   }
 }
 
-/** Open compiled output in a side editor tab (Svelte-style). */
 async function showSideTab(uri: vscode.Uri): Promise<void> {
   const doc = await vscode.workspace.openTextDocument(uri);
   await vscode.window.showTextDocument(doc, {
@@ -109,7 +98,6 @@ async function showSideTab(uri: vscode.Uri): Promise<void> {
   });
 }
 
-/** Open compiled output in an inline peek view. */
 async function showPeek(uri: vscode.Uri, line?: number): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor) return;

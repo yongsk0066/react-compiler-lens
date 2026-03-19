@@ -1,16 +1,7 @@
-/**
- * Directive found in a file or function body.
- */
 export type Directive = 'use client' | 'use server' | null;
 
-/**
- * Detected framework for the workspace.
- */
 export type Framework = 'nextjs' | 'none';
 
-/**
- * Compilation result for a declared component.
- */
 export type CompileResult =
   | {
       status: 'success';
@@ -29,9 +20,6 @@ export type CompileResult =
       reason: string;
     };
 
-/**
- * Normalized diagnostic from compiler errors.
- */
 export interface DiagnosticInfo {
   message: string;
   line: number | null;
@@ -39,9 +27,6 @@ export interface DiagnosticInfo {
   severity: 'error' | 'warning' | 'info';
 }
 
-/**
- * Analysis result for a component declared in the current file.
- */
 export interface DeclaredComponentAnalysis {
   name: string;
   location: { line: number; column: number };
@@ -49,9 +34,6 @@ export interface DeclaredComponentAnalysis {
   compileResult: CompileResult;
 }
 
-/**
- * Analysis result for an imported component.
- */
 export interface ImportedComponentAnalysis {
   name: string;
   importLocation: { line: number; column: number };
@@ -60,9 +42,6 @@ export interface ImportedComponentAnalysis {
   sourceFilePath: string;
 }
 
-/**
- * Complete analysis result for a file.
- */
 export interface FileAnalysisResult {
   filePath: string;
   directive: Directive;
@@ -70,6 +49,6 @@ export interface FileAnalysisResult {
   declaredComponents: DeclaredComponentAnalysis[];
   importedComponents: ImportedComponentAnalysis[];
   compiledCode: string | null;
-  /** CompileDiagnostic events — warnings/suggestions from the compiler, not blocking. */
+  /** Warnings/suggestions from the compiler — informational, not blocking. */
   compilerDiagnostics: DiagnosticInfo[];
 }
