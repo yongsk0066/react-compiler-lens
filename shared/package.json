@@ -1,0 +1,6 @@
+{
+  "name": "@react-compiler-lens/shared",
+  "private": true,
+  "main": "src/types.ts",
+  "types": "src/types.ts"
+}

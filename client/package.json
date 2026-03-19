@@ -1,0 +1,8 @@
+{
+  "name": "@react-compiler-lens/client",
+  "private": true,
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1",
+    "@react-compiler-lens/shared": "workspace:*"
+  }
+}
