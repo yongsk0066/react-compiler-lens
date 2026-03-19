@@ -2,10 +2,10 @@
 
 ## 0.0.4 (2026-03-20)
 
-- Only show Server/Client labels when directive is explicitly present
-- Files without `"use client"` / `"use server"` no longer show misleading labels
-- Declared components still show compilation status (Optimized / Not Optimized / Skipped)
-- Use compiler classification for imported components (constants/types no longer show CodeLens)
+- Directive inheritance: `"use client"` file's imports show "Client Component (inherited)"
+- Only show Server/Client labels when directive is explicitly present or inherited
+- Files without directives no longer show misleading labels
+- Use React Compiler classification for imported components
 - Add `classifyFunctions` test suite
 
 ## 0.0.3 (2026-03-20)

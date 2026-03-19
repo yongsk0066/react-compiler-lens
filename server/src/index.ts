@@ -83,12 +83,6 @@ function shouldShowDeclaredComponent(directive: Directive, cfg: Config): boolean
   return true;
 }
 
-function shouldShowImportedComponent(directive: Directive, cfg: Config): boolean {
-  if (directive === null) return false;
-  if (directive === 'use server' && !cfg.serverComponent) return false;
-  if (directive === 'use client' && !cfg.clientComponent) return false;
-  return true;
-}
 
 function createLabelOnlyLens(line: number, col: number, label: string): CodeLens {
   const range = Range.create(line, col, line, col);
@@ -297,21 +291,27 @@ connection.onCodeLens(params => {
   }
 
   for (const imp of result.importedComponents) {
-    if (!shouldShowImportedComponent(imp.directive, config)) continue;
+    const effectiveDirective = imp.directive ?? imp.inheritedDirective;
+    if (!effectiveDirective) continue;
 
-    const kindLabel = getKindLabel(imp.directive)!;
+    const baseLabel = getKindLabel(effectiveDirective);
+    if (!baseLabel) continue;
+    if (effectiveDirective === 'use client' && !config.clientComponent) continue;
+    if (effectiveDirective === 'use server' && !config.serverComponent) continue;
+
+    const label = imp.directive ? baseLabel : `${baseLabel} (inherited)`;
 
     lenses.push(createLabelOnlyLens(
       Math.max(0, imp.importLocation.line - 1),
       imp.importLocation.column,
-      kindLabel,
+      label,
     ));
 
     for (const jsxLoc of imp.jsxLocations) {
       lenses.push(createLabelOnlyLens(
         Math.max(0, jsxLoc.line - 1),
         jsxLoc.column,
-        kindLabel,
+        label,
       ));
     }
   }

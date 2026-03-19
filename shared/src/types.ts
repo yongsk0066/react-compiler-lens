@@ -39,6 +39,7 @@ export interface ImportedComponentAnalysis {
   importLocation: { line: number; column: number };
   jsxLocations: { line: number; column: number }[];
   directive: Directive;
+  inheritedDirective: Directive;
   sourceFilePath: string;
 }
 

@@ -1,5 +1,5 @@
 import type * as t from '@babel/types';
-import type { Framework, FileAnalysisResult, DeclaredComponentAnalysis, ImportedComponentAnalysis, CompileResult, DiagnosticInfo } from '@react-compiler-lens/shared';
+import type { Framework, FileAnalysisResult, DeclaredComponentAnalysis, ImportedComponentAnalysis, CompileResult, DiagnosticInfo, Directive } from '@react-compiler-lens/shared';
 import { parseCode, walkAst } from './ast';
 import { compileFile, type CapturedEvent } from './compiler';
 import { extractFileDirective, extractFunctionDirectives } from './directives';
@@ -43,7 +43,7 @@ export class Analyzer {
     );
 
     const importedComponents = ast
-      ? this.buildImportedComponents(filePath, ast, code)
+      ? this.buildImportedComponents(filePath, ast, code, fileDirective)
       : [];
 
     const compilerDiagnostics = this.collectCompilerDiagnostics(events);
@@ -198,6 +198,7 @@ export class Analyzer {
     filePath: string,
     ast: ReturnType<typeof parseCode> & object,
     code: string,
+    fileDirective: Directive,
   ): ImportedComponentAnalysis[] {
     const imports = this.collectImportCandidates(ast);
     const verified: ImportInfo[] = [];
@@ -217,11 +218,13 @@ export class Analyzer {
       const { directive, resolvedPath } = this.importResolver.resolveImportWithPath(
         filePath, imp.specifier, imp.name,
       );
+      const inheritedDirective = directive === null ? fileDirective : null;
       return {
         name: imp.name,
         importLocation: imp.importLocation,
         jsxLocations: jsxUsage[imp.name] ?? [],
         directive,
+        inheritedDirective,
         sourceFilePath: resolvedPath ?? '',
       };
     });
