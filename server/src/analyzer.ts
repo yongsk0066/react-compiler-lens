@@ -36,11 +36,18 @@ export class Analyzer {
     const fileDirective = extractFileDirective(code, ast ?? undefined);
     const functionDirectives = extractFunctionDirectives(code, ast ?? undefined);
 
+    const serverOnlyImportLine = ast ? detectServerOnlyImportLine(ast) : null;
+    const fileKind = determineFileKind(fileDirective, serverOnlyImportLine !== null, this.framework);
+
     const declaredComponents = this.buildDeclaredComponents(
       getComponentEvents(),
       fileDirective,
       functionDirectives,
     );
+
+    const serverActionExports = fileKind === 'server-action' && ast
+      ? extractServerActionExports(ast)
+      : [];
 
     const importedComponents = ast
       ? this.buildImportedComponents(filePath, ast, code, fileDirective)
@@ -50,12 +57,15 @@ export class Analyzer {
 
     return {
       filePath,
+      fileKind,
       directive: fileDirective,
       framework: this.framework,
       declaredComponents,
+      serverActionExports,
       importedComponents,
       compiledCode,
       compilerDiagnostics,
+      serverOnlyImportLine,
     };
   }
 
@@ -223,6 +233,7 @@ export class Analyzer {
           directive,
           inheritedDirective: directive === null ? fileDirective : null,
           sourceFilePath: resolvedPath,
+          sourceFileKind: deriveSourceFileKind(directive, this.framework),
         };
       });
   }
