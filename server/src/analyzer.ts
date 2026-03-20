@@ -1,5 +1,5 @@
 import type * as t from '@babel/types';
-import type { Framework, FileAnalysisResult, DeclaredComponentAnalysis, ImportedComponentAnalysis, CompileResult, DiagnosticInfo, Directive } from '@react-compiler-lens/shared';
+import type { Framework, FileAnalysisResult, DeclaredComponentAnalysis, ImportedComponentAnalysis, CompileResult, DiagnosticInfo, Directive, FileKind, ServerActionExport } from '@react-compiler-lens/shared';
 import { parseCode, walkAst } from './ast';
 import { compileFile, type CapturedEvent } from './compiler';
 import { extractFileDirective, extractFunctionDirectives } from './directives';
@@ -294,6 +294,42 @@ function cleanSkipReason(reason: string): string {
     return 'opt-out directive';
   }
   return reason.replace(/\.$/, '');
+}
+
+/** Determine the kind of file based on directive, server-only import, and framework. */
+export function determineFileKind(
+  fileDirective: Directive,
+  hasServerOnlyImport: boolean,
+  framework: Framework,
+): FileKind {
+  if (fileDirective === 'use client') return 'client';
+  if (fileDirective === 'use server') return 'server-action';
+  if (hasServerOnlyImport) return 'server-only';
+  if (framework === 'nextjs') return 'server-default';
+  return 'unknown';
+}
+
+/** Label for a declared component based on its directive and the file kind. */
+export function getDeclaredComponentLabel(
+  compDirective: Directive,
+  fileKind: FileKind,
+  showDefaultSuffix: boolean,
+): string | null {
+  if (compDirective === 'use client') return 'Client Component';
+  if (compDirective === 'use server') return 'Server Action';
+  if (fileKind === 'server-default') {
+    return showDefaultSuffix ? 'Server Component (default)' : 'Server Component';
+  }
+  if (fileKind === 'server-only') return 'server-only';
+  return null;
+}
+
+/** Derive the FileKind of a source file from its resolved directive. */
+export function deriveSourceFileKind(sourceDirective: Directive, framework: Framework): FileKind {
+  if (sourceDirective === 'use client') return 'client';
+  if (sourceDirective === 'use server') return 'server-action';
+  if (framework === 'nextjs') return 'server-default';
+  return 'unknown';
 }
 
 /** Simple PascalCase check for filtering imported component names. */
