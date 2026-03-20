@@ -2,6 +2,8 @@ export type Directive = 'use client' | 'use server' | null;
 
 export type Framework = 'nextjs' | 'none';
 
+export type FileKind = 'client' | 'server-action' | 'server-only' | 'server-default' | 'unknown';
+
 export type CompileResult =
   | {
       status: 'success';
@@ -34,6 +36,11 @@ export interface DeclaredComponentAnalysis {
   compileResult: CompileResult;
 }
 
+export interface ServerActionExport {
+  name: string;
+  line: number;
+}
+
 export interface ImportedComponentAnalysis {
   name: string;
   importLocation: { line: number; column: number };
@@ -41,15 +48,19 @@ export interface ImportedComponentAnalysis {
   directive: Directive;
   inheritedDirective: Directive;
   sourceFilePath: string;
+  sourceFileKind: FileKind;
 }
 
 export interface FileAnalysisResult {
   filePath: string;
+  fileKind: FileKind;
   directive: Directive;
   framework: Framework;
   declaredComponents: DeclaredComponentAnalysis[];
+  serverActionExports: ServerActionExport[];
   importedComponents: ImportedComponentAnalysis[];
   compiledCode: string | null;
   /** Warnings/suggestions from the compiler — informational, not blocking. */
   compilerDiagnostics: DiagnosticInfo[];
+  serverOnlyImportLine: number | null;
 }
