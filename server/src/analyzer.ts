@@ -296,6 +296,58 @@ function cleanSkipReason(reason: string): string {
   return reason.replace(/\.$/, '');
 }
 
+/** Detect `import 'server-only'` and return its line number, or null. ESM import only. */
+export function detectServerOnlyImportLine(ast: t.File): number | null {
+  for (const node of ast.program.body) {
+    if (node.type === 'ImportDeclaration' && node.source.value === 'server-only') {
+      return node.loc?.start.line ?? 1;
+    }
+  }
+  return null;
+}
+
+/** Extract exported function/variable names from a 'use server' file. */
+export function extractServerActionExports(ast: t.File): ServerActionExport[] {
+  const actions: ServerActionExport[] = [];
+
+  for (const node of ast.program.body) {
+    if (node.type === 'ExportNamedDeclaration') {
+      if (node.declaration?.type === 'FunctionDeclaration' && node.declaration.id) {
+        actions.push({
+          name: node.declaration.id.name,
+          line: node.declaration.loc?.start.line ?? 1,
+        });
+      }
+      if (node.declaration?.type === 'VariableDeclaration') {
+        for (const decl of node.declaration.declarations) {
+          if (decl.id.type === 'Identifier') {
+            actions.push({
+              name: decl.id.name,
+              line: decl.loc?.start.line ?? 1,
+            });
+          }
+        }
+      }
+      for (const spec of node.specifiers) {
+        if (spec.type === 'ExportSpecifier') {
+          const name = spec.exported.type === 'Identifier'
+            ? spec.exported.name : (spec.exported as t.StringLiteral).value;
+          actions.push({ name, line: spec.loc?.start.line ?? 1 });
+        }
+      }
+    }
+    if (node.type === 'ExportDefaultDeclaration') {
+      const decl = node.declaration;
+      actions.push({
+        name: decl.type === 'FunctionDeclaration' && decl.id ? decl.id.name : 'default',
+        line: decl.loc?.start.line ?? 1,
+      });
+    }
+  }
+
+  return actions;
+}
+
 /** Determine the kind of file based on directive, server-only import, and framework. */
 export function determineFileKind(
   fileDirective: Directive,
