@@ -12,13 +12,14 @@ import {
   TextDocuments,
   TextDocumentSyncKind,
 } from 'vscode-languageserver/node';
-import { Analyzer } from './analyzer';
+import { Analyzer, getDeclaredComponentLabel } from './analyzer';
 import { detectFramework } from './framework';
 import type {
   FileAnalysisResult,
   DeclaredComponentAnalysis,
   Directive,
   Framework,
+  FileKind,
 } from '@react-compiler-lens/shared';
 
 interface Config {
@@ -83,9 +84,17 @@ function mapSeverity(severityStr: string): DiagnosticSeverity {
   }
 }
 
-function shouldShowDeclaredComponent(directive: Directive, cfg: Config): boolean {
-  if (directive === 'use server' && !cfg.serverComponent) return false;
-  if (directive === 'use client' && !cfg.clientComponent) return false;
+function shouldShowDeclaredComponent(
+  compDirective: Directive,
+  fileKind: FileKind,
+  cfg: Config,
+): boolean {
+  if (compDirective === 'use client' && !cfg.clientComponent) return false;
+  if (compDirective === 'use server' && !cfg.serverComponent) return false;
+  if (compDirective === null) {
+    if (fileKind === 'server-default' && !cfg.serverComponent) return false;
+    if (fileKind === 'server-only' && !cfg.serverOnly) return false;
+  }
   return true;
 }
 
@@ -283,10 +292,13 @@ connection.onCodeLens(params => {
 
   const lenses: CodeLens[] = [];
 
+  // A. Declared Components
   for (const comp of result.declaredComponents) {
-    if (!shouldShowDeclaredComponent(comp.directive, config)) continue;
+    if (!shouldShowDeclaredComponent(comp.directive, result.fileKind, config)) continue;
 
-    const kindLabel = getKindLabel(comp.directive);
+    const kindLabel = getDeclaredComponentLabel(
+      comp.directive, result.fileKind, config.showDefaultSuffix,
+    );
     const line = Math.max(0, comp.location.line - 1);
     const col = comp.location.column;
 
@@ -298,16 +310,41 @@ connection.onCodeLens(params => {
     }
   }
 
+  // B. Server Action Exports
+  if (config.serverAction && result.fileKind === 'server-action') {
+    for (const action of result.serverActionExports) {
+      const line = Math.max(0, action.line - 1);
+      lenses.push(createLabelOnlyLens(line, 0, 'Server Action'));
+    }
+  }
+
+  // C. server-only File Indicator (only when no declared components)
+  if (config.serverOnly && result.fileKind === 'server-only'
+      && result.serverOnlyImportLine !== null
+      && result.declaredComponents.length === 0) {
+    const line = Math.max(0, result.serverOnlyImportLine - 1);
+    lenses.push(createLabelOnlyLens(line, 0, 'server-only'));
+  }
+
+  // D. Imported Components
   for (const imp of result.importedComponents) {
     const effectiveDirective = imp.directive ?? imp.inheritedDirective;
-    if (!effectiveDirective) continue;
 
-    const baseLabel = getKindLabel(effectiveDirective);
-    if (!baseLabel) continue;
-    if (effectiveDirective === 'use client' && !config.clientComponent) continue;
-    if (effectiveDirective === 'use server' && !config.serverComponent) continue;
+    let label: string | null = null;
 
-    const label = imp.directive ? baseLabel : `${baseLabel} (inherited)`;
+    if (effectiveDirective) {
+      if (effectiveDirective === 'use client' && !config.clientComponent) continue;
+      if (effectiveDirective === 'use server' && !config.serverComponent) continue;
+
+      const baseLabel = getKindLabel(effectiveDirective);
+      if (!baseLabel) continue;
+      label = imp.directive ? baseLabel : `${baseLabel} (inherited)`;
+    } else if (imp.sourceFileKind === 'server-default' && config.serverComponent) {
+      label = config.showDefaultSuffix
+        ? 'Server Component (default)' : 'Server Component';
+    }
+
+    if (!label) continue;
 
     lenses.push(createLabelOnlyLens(
       Math.max(0, imp.importLocation.line - 1),
