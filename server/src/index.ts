@@ -26,6 +26,9 @@ interface Config {
   serverComponent: boolean;
   clientComponent: boolean;
   compilationStatus: boolean;
+  serverAction: boolean;
+  serverOnly: boolean;
+  showDefaultSuffix: boolean;
   diagnosticsEnabled: boolean;
   diagnosticsSeverity: string;
   framework: string;
@@ -36,6 +39,9 @@ const defaultConfig: Config = {
   serverComponent: true,
   clientComponent: true,
   compilationStatus: true,
+  serverAction: true,
+  serverOnly: true,
+  showDefaultSuffix: true,
   diagnosticsEnabled: true,
   diagnosticsSeverity: 'warning',
   framework: 'auto',
@@ -126,6 +132,9 @@ connection.onDidChangeConfiguration(change => {
     serverComponent: (codeLens?.['serverComponent'] as boolean) ?? defaultConfig.serverComponent,
     clientComponent: (codeLens?.['clientComponent'] as boolean) ?? defaultConfig.clientComponent,
     compilationStatus: (codeLens?.['compilationStatus'] as boolean) ?? defaultConfig.compilationStatus,
+    serverAction: (codeLens?.['serverAction'] as boolean) ?? defaultConfig.serverAction,
+    serverOnly: (codeLens?.['serverOnly'] as boolean) ?? defaultConfig.serverOnly,
+    showDefaultSuffix: (codeLens?.['showDefaultSuffix'] as boolean) ?? defaultConfig.showDefaultSuffix,
     diagnosticsEnabled: (diagnostics?.['enabled'] as boolean) ?? defaultConfig.diagnosticsEnabled,
     diagnosticsSeverity: (diagnostics?.['severity'] as string) ?? defaultConfig.diagnosticsSeverity,
     framework: (s['framework'] as string) ?? defaultConfig.framework,

@@ -62,6 +62,21 @@
           "default": true,
           "description": "Show compilation status in CodeLens"
         },
+        "reactCompilerLens.codeLens.serverAction": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show CodeLens for Server Actions (files with 'use server')"
+        },
+        "reactCompilerLens.codeLens.serverOnly": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show CodeLens for server-only files (import 'server-only')"
+        },
+        "reactCompilerLens.codeLens.showDefaultSuffix": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show '(default)' suffix for implicit Server Components in Next.js"
+        },
         "reactCompilerLens.diagnostics.enabled": {
           "type": "boolean",
           "default": true,
