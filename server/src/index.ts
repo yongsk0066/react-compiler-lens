@@ -70,6 +70,7 @@ let hasCodeLensRefresh = false;
 const analysisCache = new Map<string, FileAnalysisResult>();
 const contentHashCache = new Map<string, string>();
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const inFlightAnalysis = new Set<string>();
 
 const DEBOUNCE_MS = 200;
 
@@ -183,38 +184,46 @@ async function runAnalysis(document: TextDocument): Promise<void> {
   if (!config.enabled || !analyzer) return;
 
   const uri = document.uri;
-  const content = document.getText();
-  const hash = md5(content);
 
-  if (contentHashCache.get(uri) === hash) return;
-  contentHashCache.set(uri, hash);
+  if (inFlightAnalysis.has(uri)) return;
+  inFlightAnalysis.add(uri);
 
-  let filePath: string;
   try {
-    filePath = new URL(uri).pathname;
-  } catch {
-    filePath = uri;
-  }
+    const content = document.getText();
+    const hash = md5(content);
 
-  let result: FileAnalysisResult;
-  try {
-    result = await analyzer.analyze(filePath, content);
-    analyzer.invalidateFile(filePath);
-  } catch (err) {
-    connection.console.error(`Analysis failed for ${uri}: ${err instanceof Error ? err.message : String(err)}`);
-    return;
-  }
+    if (contentHashCache.get(uri) === hash) return;
+    contentHashCache.set(uri, hash);
 
-  analysisCache.set(uri, result);
+    let filePath: string;
+    try {
+      filePath = new URL(uri).pathname;
+    } catch {
+      filePath = uri;
+    }
 
-  if (config.diagnosticsEnabled) {
-    publishDiagnostics(uri, result);
-  } else {
-    connection.sendDiagnostics({ uri, diagnostics: [] });
-  }
+    let result: FileAnalysisResult;
+    try {
+      result = await analyzer.analyze(filePath, content);
+      analyzer.invalidateFile(filePath);
+    } catch (err) {
+      connection.console.error(`Analysis failed for ${uri}: ${err instanceof Error ? err.message : String(err)}`);
+      return;
+    }
 
-  if (hasCodeLensRefresh) {
-    connection.sendRequest('workspace/codeLens/refresh');
+    analysisCache.set(uri, result);
+
+    if (config.diagnosticsEnabled) {
+      publishDiagnostics(uri, result);
+    } else {
+      connection.sendDiagnostics({ uri, diagnostics: [] });
+    }
+
+    if (hasCodeLensRefresh) {
+      connection.sendRequest('workspace/codeLens/refresh');
+    }
+  } finally {
+    inFlightAnalysis.delete(uri);
   }
 }
 
