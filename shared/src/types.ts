@@ -27,6 +27,15 @@ export interface DiagnosticInfo {
   line: number | null;
   column: number | null;
   severity: 'error' | 'warning' | 'info';
+  // Rich fields
+  category?: string;
+  description?: string | null;
+  details?: Array<{
+    kind: 'error' | 'hint';
+    line?: number;
+    column?: number;
+    message: string;
+  }>;
 }
 
 export interface DeclaredComponentAnalysis {
