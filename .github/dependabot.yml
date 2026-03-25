@@ -7,3 +7,8 @@ updates:
     groups:
       dev-tools:
         patterns: ["rolldown", "typescript", "vitest", "@types/*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
