@@ -179,6 +179,6 @@
     "oxlint": "^1.57.0",
     "rolldown": "1.0.0-rc.12",
     "typescript": "^6.0.2",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.1"
   }
 }
