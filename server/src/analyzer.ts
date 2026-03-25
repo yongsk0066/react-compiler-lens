@@ -1,5 +1,6 @@
 import type * as t from '@babel/types';
 import type { Framework, FileAnalysisResult, DeclaredComponentAnalysis, ImportedComponentAnalysis, CompileResult, DiagnosticInfo, Directive, FileKind, ServerActionExport } from '@react-compiler-lens/shared';
+import { CompilerErrorDetail, CompilerDiagnostic } from 'babel-plugin-react-compiler';
 import { parseCode, walkAst } from './ast';
 import { compileFile, type CapturedEvent } from './compiler';
 import { extractFileDirective, extractFunctionDirectives } from './directives';
@@ -143,31 +144,19 @@ export class Analyzer {
   private normalizeDiagnostic(event: CapturedEvent): DiagnosticInfo[] {
     if (event.kind === 'CompileError') {
       const raw = event.raw as { kind: 'CompileError'; detail: unknown };
-      const detail = raw.detail as {
-        reason?: string;
-        loc?: { start?: { line?: number; column?: number } } | null;
-        primaryLocation?: () => { start?: { line?: number; column?: number } } | null;
-      };
+      const detail = raw.detail;
 
-      const message = typeof detail.reason === 'string' ? detail.reason : String(detail);
-      let line: number | null = null;
-      let column: number | null = null;
-
-      if (detail.loc !== undefined) {
-        const loc = detail.loc;
-        if (loc && typeof loc === 'object' && 'start' in loc) {
-          line = (loc as { start: { line: number; column: number } }).start.line ?? null;
-          column = (loc as { start: { line: number; column: number } }).start.column ?? null;
-        }
-      } else if (typeof detail.primaryLocation === 'function') {
-        const loc = detail.primaryLocation();
-        if (loc && typeof loc === 'object' && 'start' in loc) {
-          line = (loc as { start: { line: number; column: number } }).start.line ?? null;
-          column = (loc as { start: { line: number; column: number } }).start.column ?? null;
-        }
+      if (isCompilerDiagnostic(detail)) {
+        return [this.extractFromCompilerDiagnostic(detail)];
       }
-
-      return [{ message, line, column, severity: 'error' }];
+      if (isCompilerErrorDetail(detail)) {
+        return [this.extractFromErrorDetail(detail)];
+      }
+      // Fallback for unknown detail structures
+      const msg = detail && typeof detail === 'object' && 'reason' in detail
+        ? String((detail as any).reason)
+        : String(detail);
+      return [{ message: msg, line: null, column: null, severity: 'error' }];
     }
 
     if (event.kind === 'PipelineError') {
@@ -186,20 +175,63 @@ export class Analyzer {
     return [];
   }
 
+  private extractFromCompilerDiagnostic(diag: InstanceType<typeof CompilerDiagnostic>): DiagnosticInfo {
+    const loc = safeGetLocation(diag.primaryLocation());
+    const errorDetails = diag.options.details.filter(
+      (d: any) => d.kind === 'error' && d.loc && typeof d.loc !== 'symbol'
+    );
+    const hintDetails = diag.options.details.filter(
+      (d: any) => d.kind === 'hint'
+    );
+
+    return {
+      message: diag.reason,
+      line: loc?.line ?? null,
+      column: loc?.column ?? null,
+      severity: mapCompilerSeverity(diag.severity),
+      category: diag.category,
+      description: diag.description,
+      details: [
+        ...errorDetails.map((d: any) => ({
+          kind: 'error' as const,
+          line: safeGetLocation(d.loc)?.line,
+          column: safeGetLocation(d.loc)?.column,
+          message: d.message ?? '',
+        })),
+        ...hintDetails.map((d: any) => ({
+          kind: 'hint' as const,
+          message: d.message,
+        })),
+      ],
+    };
+  }
+
+  private extractFromErrorDetail(detail: InstanceType<typeof CompilerErrorDetail>): DiagnosticInfo {
+    const loc = safeGetLocation(detail.primaryLocation());
+    return {
+      message: detail.reason,
+      line: loc?.line ?? null,
+      column: loc?.column ?? null,
+      severity: mapCompilerSeverity(detail.severity),
+      category: detail.category,
+      description: detail.description ?? null,
+    };
+  }
+
   private collectCompilerDiagnostics(events: CapturedEvent[]): DiagnosticInfo[] {
     return events
       .filter(e => e.kind === 'CompileDiagnostic')
       .map(e => {
         const raw = e.raw as { kind: 'CompileDiagnostic'; detail: unknown };
-        const detail = raw.detail as {
-          reason?: string;
-          loc?: { start?: { line?: number; column?: number } } | null;
-        };
+        const detail = raw.detail as any;
+        const loc = safeGetLocation(detail?.loc ?? detail?.primaryLocation?.());
         return {
-          message: typeof detail.reason === 'string' ? detail.reason : String(detail),
-          line: detail.loc?.start?.line ?? e.fnLoc?.start.line ?? null,
-          column: detail.loc?.start?.column ?? e.fnLoc?.start.column ?? null,
+          message: typeof detail?.reason === 'string' ? detail.reason : String(detail),
+          line: loc?.line ?? e.fnLoc?.start.line ?? null,
+          column: loc?.column ?? e.fnLoc?.start.column ?? null,
           severity: 'info' as const,
+          category: typeof detail?.category === 'string' ? detail.category : undefined,
+          description: typeof detail?.description === 'string' ? detail.description : undefined,
         };
       });
   }
@@ -295,6 +327,44 @@ export class Analyzer {
 
     return usage;
   }
+}
+
+/** Safe location extraction — handles null, symbol (GeneratedSource), and normal SourceLocation */
+function safeGetLocation(loc: unknown): { line: number; column: number } | null {
+  if (!loc || typeof loc === 'symbol' || typeof loc !== 'object') return null;
+  const l = loc as { start?: { line?: number; column?: number } };
+  if (typeof l.start?.line !== 'number') return null;
+  return { line: l.start.line, column: l.start.column ?? 0 };
+}
+
+/** Map React Compiler's ErrorSeverity to our severity strings */
+function mapCompilerSeverity(severity: string): 'error' | 'warning' | 'info' {
+  switch (severity) {
+    case 'Error': return 'error';
+    case 'Warning': return 'warning';
+    default: return 'info';
+  }
+}
+
+/** Type guard: is the detail a CompilerDiagnostic instance? */
+function isCompilerDiagnostic(detail: unknown): detail is CompilerDiagnostic {
+  if (detail instanceof CompilerDiagnostic) return true;
+  // Duck typing fallback
+  return detail !== null && typeof detail === 'object'
+    && 'options' in detail
+    && typeof (detail as any).options === 'object'
+    && 'details' in (detail as any).options
+    && Array.isArray((detail as any).options.details);
+}
+
+/** Type guard: is the detail a CompilerErrorDetail instance? */
+function isCompilerErrorDetail(detail: unknown): detail is CompilerErrorDetail {
+  if (detail instanceof CompilerErrorDetail) return true;
+  // Duck typing fallback
+  return detail !== null && typeof detail === 'object'
+    && 'category' in detail && 'reason' in detail
+    && typeof (detail as any).reason === 'string'
+    && !('options' in detail);
 }
 
 function cleanSkipReason(reason: string): string {
