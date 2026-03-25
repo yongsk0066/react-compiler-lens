@@ -78,6 +78,33 @@
         "title": "React Compiler Lens: Peek Compiled Output"
       }
     ],
+    "walkthroughs": [
+      {
+        "id": "reactCompilerLens.gettingStarted",
+        "title": "Get Started with React Compiler Lens",
+        "description": "See React Compiler analysis results as CodeLens annotations.",
+        "steps": [
+          {
+            "id": "openReactFile",
+            "title": "Open a React Component",
+            "description": "Open any `.tsx` or `.jsx` file. CodeLens annotations appear automatically above components.",
+            "media": { "markdown": "" }
+          },
+          {
+            "id": "viewCompiled",
+            "title": "View Compiled Output",
+            "description": "Click an **Optimized** CodeLens to see the compiler's output.\n\n[View Compiled Output](command:reactCompilerLens.peekCompiled)",
+            "media": { "markdown": "" }
+          },
+          {
+            "id": "checkDiagnostics",
+            "title": "Check Diagnostics",
+            "description": "Compilation errors appear in the Problems panel.\n\n[Show Problems](command:reactCompilerLens.showProblems)",
+            "media": { "markdown": "" }
+          }
+        ]
+      }
+    ],
     "configuration": {
       "title": "React Compiler Lens",
       "properties": {
