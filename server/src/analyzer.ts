@@ -24,7 +24,6 @@ interface JsxUsageMap {
 export class Analyzer {
   private framework: Framework;
   private importResolver: ImportResolver;
-  private reactiveValuesMap: Map<string, string[]> = new Map();
 
   constructor(options: AnalyzerOptions) {
     this.framework = options.framework;
@@ -32,22 +31,24 @@ export class Analyzer {
   }
 
   async analyze(filePath: string, code: string): Promise<FileAnalysisResult> {
-    const { events, compiledCode, getComponentEvents } = await compileFile(code, filePath);
+    const compileResult = await compileFile(code, filePath);
+    const { events, compiledCode, getComponentEvents } = compileResult;
 
-    const ast = parseCode(code);
+    const ast = compileResult.ast ?? parseCode(code);
     const fileDirective = extractFileDirective(code, ast ?? undefined);
     const functionDirectives = extractFunctionDirectives(code, ast ?? undefined);
 
     const serverOnlyImportLine = ast ? detectServerOnlyImportLine(ast) : null;
     const fileKind = determineFileKind(fileDirective, serverOnlyImportLine !== null, this.framework);
 
-    // Compute reactive values from compiled output
-    this.reactiveValuesMap = compiledCode ? buildReactiveValuesMap(compiledCode) : new Map();
+    // Compute reactive values from compiled output (local to avoid data race)
+    const reactiveValuesMap = compiledCode ? buildReactiveValuesMap(compiledCode) : new Map<string, string[]>();
 
     const declaredComponents = this.buildDeclaredComponents(
       getComponentEvents(),
       fileDirective,
       functionDirectives,
+      reactiveValuesMap,
     );
 
     const serverActionExports = fileKind === 'server-action' && ast
@@ -78,6 +79,7 @@ export class Analyzer {
     componentEvents: CapturedEvent[],
     fileDirective: ReturnType<typeof extractFileDirective>,
     functionDirectives: ReturnType<typeof extractFunctionDirectives>,
+    reactiveValuesMap: Map<string, string[]>,
   ): DeclaredComponentAnalysis[] {
     const grouped = new Map<string, CapturedEvent[]>();
     for (const event of componentEvents) {
@@ -91,7 +93,7 @@ export class Analyzer {
     for (const [name, events] of grouped) {
       const location = this.resolveComponentLocation(events);
       const directive = functionDirectives.get(name) ?? fileDirective;
-      const compileResult = this.buildCompileResult(name, events);
+      const compileResult = this.buildCompileResult(name, events, reactiveValuesMap);
       results.push({ name, location, directive, compileResult });
     }
     return results;
@@ -106,7 +108,7 @@ export class Analyzer {
     return { line: 1, column: 0 };
   }
 
-  private buildCompileResult(name: string, events: CapturedEvent[]): CompileResult {
+  private buildCompileResult(name: string, events: CapturedEvent[], reactiveValuesMap: Map<string, string[]>): CompileResult {
     const successEvent = events.find(e => e.kind === 'CompileSuccess');
     if (successEvent) {
       const raw = successEvent.raw as {
@@ -125,7 +127,7 @@ export class Analyzer {
         memoValues: raw.memoValues,
         prunedMemoBlocks: raw.prunedMemoBlocks,
         prunedMemoValues: raw.prunedMemoValues,
-        reactiveValues: this.reactiveValuesMap.get(name) ?? [],
+        reactiveValues: reactiveValuesMap.get(name) ?? [],
       };
     }
 

@@ -1,7 +1,7 @@
 import { parseAsync, transformFromAstAsync } from '@babel/core';
 import type * as t from '@babel/types';
 import type { LoggerEvent, PluginOptions } from 'babel-plugin-react-compiler';
-import { walkAst, isFunctionNode } from './ast';
+import { walkAst, isFunctionNode, type ParsedAst } from './ast';
 import { classifyFunctions } from './classify';
 
 export interface CapturedEvent {
@@ -14,6 +14,7 @@ export interface CapturedEvent {
 export interface CompileFileResult {
   events: CapturedEvent[];
   compiledCode: string | null;
+  ast: ParsedAst | null;
   getComponentEvents(): CapturedEvent[];
 }
 
@@ -34,7 +35,7 @@ export async function compileFile(
   code: string,
   filename: string,
 ): Promise<CompileFileResult> {
-  const empty: CompileFileResult = { events: [], compiledCode: null, getComponentEvents: () => [] };
+  const empty: CompileFileResult = { events: [], compiledCode: null, ast: null, getComponentEvents: () => [] };
 
   let ast: Awaited<ReturnType<typeof parseAsync>>;
   try {
@@ -124,6 +125,7 @@ export async function compileFile(
   return {
     events: capturedEvents,
     compiledCode,
+    ast: ast as ParsedAst,
     getComponentEvents() {
       return capturedEvents.filter(e =>
         e.fnName != null && classification.get(e.fnName) === 'Component',
