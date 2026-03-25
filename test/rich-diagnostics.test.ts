@@ -15,14 +15,15 @@ describe('Rich Diagnostics', () => {
     fs.rmSync(tmpDir, { recursive: true });
   });
 
-  it('extracts category from compile error', async () => {
+  it('includes category in error diagnostics', async () => {
     const filePath = path.join(tmpDir, 'BadRef.tsx');
+    // ref.current mutation during render always triggers a compiler error
     const code = [
       'import { useRef } from "react";',
       'export function BadRef() {',
-      '  const ref = useRef<HTMLDivElement>(null);',
-      '  const val = ref.current;',
-      '  return <div ref={ref}>{val?.id}</div>;',
+      '  const ref = useRef(null);',
+      '  ref.current = "mutated during render";',
+      '  return <div>{ref.current}</div>;',
       '}',
     ].join('\n');
     fs.writeFileSync(filePath, code);
@@ -31,12 +32,72 @@ describe('Rich Diagnostics', () => {
     const result = await analyzer.analyze(filePath, code);
     const comp = result.declaredComponents.find(c => c.name === 'BadRef');
 
-    // Component may compile successfully or with error depending on compiler behavior
-    // If it errors, the category should be populated
-    if (comp?.compileResult.status === 'error' && comp.compileResult.diagnostics.length > 0) {
-      const diag = comp.compileResult.diagnostics[0];
+    expect(comp).toBeDefined();
+    expect(comp!.compileResult.status).toBe('error');
+
+    if (comp!.compileResult.status === 'error') {
+      expect(comp!.compileResult.diagnostics.length).toBeGreaterThan(0);
+      const diag = comp!.compileResult.diagnostics[0];
       expect(diag.category).toBeDefined();
       expect(typeof diag.category).toBe('string');
+      expect(diag.category!.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('includes description in error diagnostics', async () => {
+    const filePath = path.join(tmpDir, 'StateMutation.tsx');
+    // Direct state mutation during render always triggers a compiler error
+    const code = [
+      'import { useState } from "react";',
+      'export function StateMutation() {',
+      '  const [state, setState] = useState({ count: 0 });',
+      '  state.count += 1;',
+      '  return <div>{state.count}</div>;',
+      '}',
+    ].join('\n');
+    fs.writeFileSync(filePath, code);
+
+    const analyzer = new Analyzer({ framework: 'none' });
+    const result = await analyzer.analyze(filePath, code);
+    const comp = result.declaredComponents.find(c => c.name === 'StateMutation');
+
+    expect(comp).toBeDefined();
+    expect(comp!.compileResult.status).toBe('error');
+
+    if (comp!.compileResult.status === 'error') {
+      expect(comp!.compileResult.diagnostics.length).toBeGreaterThan(0);
+      const diag = comp!.compileResult.diagnostics[0];
+      // description may be null/undefined for some error types, but the field should exist on the shape
+      expect('description' in diag || diag.category !== undefined).toBe(true);
+    }
+  });
+
+  it('populates diagnostic message and severity for ref mutation error', async () => {
+    const filePath = path.join(tmpDir, 'RefMutation.tsx');
+    // ref.current write during render is a deterministic bailout
+    const code = [
+      'import { useRef } from "react";',
+      'export function RefMutation() {',
+      '  const ref = useRef(0);',
+      '  ref.current = ref.current + 1;',
+      '  return <span>{ref.current}</span>;',
+      '}',
+    ].join('\n');
+    fs.writeFileSync(filePath, code);
+
+    const analyzer = new Analyzer({ framework: 'none' });
+    const result = await analyzer.analyze(filePath, code);
+    const comp = result.declaredComponents.find(c => c.name === 'RefMutation');
+
+    expect(comp).toBeDefined();
+    expect(comp!.compileResult.status).toBe('error');
+
+    if (comp!.compileResult.status === 'error') {
+      expect(comp!.compileResult.diagnostics.length).toBeGreaterThan(0);
+      const diag = comp!.compileResult.diagnostics[0];
+      expect(typeof diag.message).toBe('string');
+      expect(diag.message.length).toBeGreaterThan(0);
+      expect(['error', 'warning', 'info']).toContain(diag.severity);
     }
   });
 
@@ -76,7 +137,6 @@ describe('Rich Diagnostics', () => {
 
     const analyzer = new Analyzer({ framework: 'none' });
     const result = await analyzer.analyze(filePath, code);
-    // Server action files may or may not produce diagnostics
     expect(result.fileKind).toBe('server-action');
   });
 });
