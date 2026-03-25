@@ -228,15 +228,22 @@ export class Analyzer {
       .filter(e => e.kind === 'CompileDiagnostic')
       .map(e => {
         const raw = e.raw as { kind: 'CompileDiagnostic'; detail: unknown };
-        const detail = raw.detail as any;
-        const loc = safeGetLocation(detail?.loc ?? detail?.primaryLocation?.());
+        const detail = raw.detail;
+        if (isCompilerDiagnostic(detail)) {
+          const enriched = this.extractFromCompilerDiagnostic(detail);
+          return { ...enriched, severity: 'info' as const };
+        }
+        if (isCompilerErrorDetail(detail)) {
+          const enriched = this.extractFromErrorDetail(detail);
+          return { ...enriched, severity: 'info' as const };
+        }
+        const d = detail as { reason?: string; loc?: unknown };
+        const loc = safeGetLocation(d?.loc);
         return {
-          message: typeof detail?.reason === 'string' ? detail.reason : String(detail),
+          message: typeof d?.reason === 'string' ? d.reason : String(d),
           line: loc?.line ?? e.fnLoc?.start.line ?? null,
           column: loc?.column ?? e.fnLoc?.start.column ?? null,
           severity: 'info' as const,
-          category: typeof detail?.category === 'string' ? detail.category : undefined,
-          description: typeof detail?.description === 'string' ? detail.description : undefined,
         };
       });
   }
@@ -386,7 +393,7 @@ function buildReactiveValuesMap(compiledCode: string): Map<string, string[]> {
 
   const result = new Map<string, string[]>();
 
-  for (const node of (ast as any).program.body) {
+  for (const node of ast.program.body) {
     const fn = toNamedFunction(node);
     if (!fn) continue;
     const deps = findCacheDeps(fn.body);
@@ -397,7 +404,7 @@ function buildReactiveValuesMap(compiledCode: string): Map<string, string[]> {
 }
 
 /** Extract {name, body} from various function declaration patterns in compiled output. */
-function toNamedFunction(node: any): { name: string; body: any } | null {
+function toNamedFunction(node: t.Statement): { name: string; body: t.BlockStatement } | null {
   // function Foo() {}
   if (node.type === 'FunctionDeclaration' && node.id?.name) {
     return { name: node.id.name, body: node.body };
