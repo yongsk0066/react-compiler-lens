@@ -12,6 +12,7 @@ export type CompileResult =
       memoValues: number;
       prunedMemoBlocks: number;
       prunedMemoValues: number;
+      reactiveValues: string[];
     }
   | {
       status: 'error';
