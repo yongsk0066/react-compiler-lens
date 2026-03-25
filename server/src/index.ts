@@ -98,7 +98,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
         ? detectFramework(workspaceRoot)
         : 'none';
 
-  analyzer = new Analyzer({ framework });
+  analyzer = new Analyzer({ framework, workspaceRoot: workspaceRoot ?? undefined });
 
   return {
     capabilities: {
@@ -135,9 +135,9 @@ connection.onDidChangeConfiguration(change => {
   };
 
   if (config.framework !== 'auto') {
-    analyzer = new Analyzer({ framework: config.framework as Framework });
+    analyzer = new Analyzer({ framework: config.framework as Framework, workspaceRoot: workspaceRoot ?? undefined });
   } else if (workspaceRoot) {
-    analyzer = new Analyzer({ framework: detectFramework(workspaceRoot) });
+    analyzer = new Analyzer({ framework: detectFramework(workspaceRoot), workspaceRoot });
   }
 
   for (const doc of documents.all()) {

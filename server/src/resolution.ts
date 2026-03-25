@@ -45,9 +45,14 @@ interface FileAnalysis {
 }
 
 export class ImportResolver {
+  private workspaceRoot: string | null = null;
   private fileCache = new Map<string, FileAnalysis>();
   private reExportCache = new Map<string, Directive>();
   private compilerOptionsCache = new Map<string, ts.CompilerOptions>();
+
+  setWorkspaceRoot(root: string): void {
+    this.workspaceRoot = root;
+  }
 
   private cacheSet(key: string, value: FileAnalysis): void {
     if (this.fileCache.size >= 500 && !this.fileCache.has(key)) {
@@ -79,6 +84,12 @@ export class ImportResolver {
 
     const resolved = result.resolvedModule?.resolvedFileName ?? null;
     if (resolved && resolved.includes('/node_modules/')) return null;
+    if (this.workspaceRoot && resolved) {
+      const normalized = path.resolve(resolved);
+      if (!normalized.startsWith(this.workspaceRoot + path.sep) && !normalized.startsWith(this.workspaceRoot + '/')) {
+        return null;
+      }
+    }
     return resolved;
   }
 

@@ -8,6 +8,7 @@ import { ImportResolver } from './resolution';
 
 export interface AnalyzerOptions {
   framework: Framework;
+  workspaceRoot?: string;
   importResolver?: ImportResolver;
 }
 
@@ -28,6 +29,9 @@ export class Analyzer {
   constructor(options: AnalyzerOptions) {
     this.framework = options.framework;
     this.importResolver = options.importResolver ?? new ImportResolver();
+    if (options.workspaceRoot) {
+      this.importResolver.setWorkspaceRoot(options.workspaceRoot);
+    }
   }
 
   invalidateFile(filePath: string): void {

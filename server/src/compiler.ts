@@ -18,6 +18,8 @@ export interface CompileFileResult {
   getComponentEvents(): CapturedEvent[];
 }
 
+const COMPILE_TIMEOUT_MS = 10_000;
+
 let cachedPlugin: unknown = null;
 
 async function getReactCompilerPlugin(): Promise<unknown> {
@@ -106,7 +108,7 @@ export async function compileFile(
 
   let compiledCode: string | null = null;
   try {
-    const result = await transformFromAstAsync(ast, code, {
+    const transformPromise = transformFromAstAsync(ast, code, {
       filename,
       highlightCode: false,
       plugins: [[BabelPluginReactCompiler, options]],
@@ -115,9 +117,13 @@ export async function compileFile(
       configFile: false,
       babelrc: false,
     });
+    const timeoutPromise = new Promise<null>((_, reject) =>
+      setTimeout(() => reject(new Error('Compilation timed out')), COMPILE_TIMEOUT_MS),
+    );
+    const result = await Promise.race([transformPromise, timeoutPromise]);
     compiledCode = result?.code ?? null;
   } catch {
-    // Transformation failed — events already captured via logger
+    // Transformation failed or timed out — events already captured via logger
   }
 
   const classification = classifyFunctions(ast);
