@@ -36,6 +36,7 @@ describe('Analyzer', () => {
     expect(counter).toBeDefined();
     expect(counter!.directive).toBe('use client');
     expect(counter!.compileResult.status).toBe('success');
+    expect(result.fileKind).toBe('client');
   });
 
   it('analyzes imported components for directive', async () => {
@@ -170,6 +171,7 @@ describe('Analyzer', () => {
     const analyzer = new Analyzer({ framework: 'none' });
     const result = await analyzer.analyze(filePath, code);
     expect(result.directive).toBe('use server');
+    expect(result.fileKind).toBe('server-action');
   });
 
   it('defaults to server component in nextjs when no directive', async () => {
@@ -182,5 +184,78 @@ describe('Analyzer', () => {
     expect(result.framework).toBe('nextjs');
     // No directive — client should interpret as Server Component based on framework
     expect(result.directive).toBeNull();
+    expect(result.fileKind).toBe('server-default');
+  });
+
+  it('sets fileKind to "client" for use client file', async () => {
+    const filePath = path.join(tmpDir, 'Client.tsx');
+    const code = '"use client";\nexport function Button() { return <button />; }';
+    fs.writeFileSync(filePath, code);
+    const analyzer = new Analyzer({ framework: 'none' });
+    const result = await analyzer.analyze(filePath, code);
+    expect(result.fileKind).toBe('client');
+    expect(result.serverActionExports).toEqual([]);
+  });
+
+  it('sets fileKind to "server-action" and extracts exports', async () => {
+    const filePath = path.join(tmpDir, 'actions.ts');
+    const code = '"use server";\nexport async function createUser() { return { id: 1 }; }\nexport async function deleteUser() { return true; }';
+    fs.writeFileSync(filePath, code);
+    const analyzer = new Analyzer({ framework: 'none' });
+    const result = await analyzer.analyze(filePath, code);
+    expect(result.fileKind).toBe('server-action');
+    expect(result.serverActionExports).toHaveLength(2);
+    expect(result.serverActionExports[0].name).toBe('createUser');
+    expect(result.serverActionExports[1].name).toBe('deleteUser');
+  });
+
+  it('sets fileKind to "server-only" for server-only import', async () => {
+    const filePath = path.join(tmpDir, 'util.ts');
+    const code = "import 'server-only';\nexport function serverUtil() { return 1; }";
+    fs.writeFileSync(filePath, code);
+    const analyzer = new Analyzer({ framework: 'nextjs' });
+    const result = await analyzer.analyze(filePath, code);
+    expect(result.fileKind).toBe('server-only');
+    expect(result.serverOnlyImportLine).toBe(1);
+  });
+
+  it('sets fileKind to "server-default" for Next.js without directive', async () => {
+    const filePath = path.join(tmpDir, 'Page.tsx');
+    const code = 'export default function Page() { return <div />; }';
+    fs.writeFileSync(filePath, code);
+    const analyzer = new Analyzer({ framework: 'nextjs' });
+    const result = await analyzer.analyze(filePath, code);
+    expect(result.fileKind).toBe('server-default');
+  });
+
+  it('sets fileKind to "unknown" for non-Next.js without directive', async () => {
+    const filePath = path.join(tmpDir, 'App.tsx');
+    const code = 'export default function App() { return <div />; }';
+    fs.writeFileSync(filePath, code);
+    const analyzer = new Analyzer({ framework: 'none' });
+    const result = await analyzer.analyze(filePath, code);
+    expect(result.fileKind).toBe('unknown');
+  });
+
+  it('sets sourceFileKind on imported components', async () => {
+    fs.writeFileSync(path.join(tmpDir, 'Modal.tsx'), '"use client";\nexport function Modal() { return <div />; }');
+    const pagePath = path.join(tmpDir, 'Page.tsx');
+    const pageCode = 'import { Modal } from "./Modal";\nexport default function Page() { return <Modal />; }';
+    fs.writeFileSync(pagePath, pageCode);
+    const analyzer = new Analyzer({ framework: 'nextjs' });
+    const result = await analyzer.analyze(pagePath, pageCode);
+    const modal = result.importedComponents.find(c => c.name === 'Modal');
+    expect(modal?.sourceFileKind).toBe('client');
+  });
+
+  it('sets sourceFileKind to server-default for directive-less import in Next.js', async () => {
+    fs.writeFileSync(path.join(tmpDir, 'Card.tsx'), 'export function Card() { return <div />; }');
+    const pagePath = path.join(tmpDir, 'Page.tsx');
+    const pageCode = 'import { Card } from "./Card";\nexport default function Page() { return <Card />; }';
+    fs.writeFileSync(pagePath, pageCode);
+    const analyzer = new Analyzer({ framework: 'nextjs' });
+    const result = await analyzer.analyze(pagePath, pageCode);
+    const card = result.importedComponents.find(c => c.name === 'Card');
+    expect(card?.sourceFileKind).toBe('server-default');
   });
 });

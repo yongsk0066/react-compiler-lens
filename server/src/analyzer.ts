@@ -1,5 +1,5 @@
 import type * as t from '@babel/types';
-import type { Framework, FileAnalysisResult, DeclaredComponentAnalysis, ImportedComponentAnalysis, CompileResult, DiagnosticInfo, Directive } from '@react-compiler-lens/shared';
+import type { Framework, FileAnalysisResult, DeclaredComponentAnalysis, ImportedComponentAnalysis, CompileResult, DiagnosticInfo, Directive, FileKind, ServerActionExport } from '@react-compiler-lens/shared';
 import { parseCode, walkAst } from './ast';
 import { compileFile, type CapturedEvent } from './compiler';
 import { extractFileDirective, extractFunctionDirectives } from './directives';
@@ -36,11 +36,18 @@ export class Analyzer {
     const fileDirective = extractFileDirective(code, ast ?? undefined);
     const functionDirectives = extractFunctionDirectives(code, ast ?? undefined);
 
+    const serverOnlyImportLine = ast ? detectServerOnlyImportLine(ast) : null;
+    const fileKind = determineFileKind(fileDirective, serverOnlyImportLine !== null, this.framework);
+
     const declaredComponents = this.buildDeclaredComponents(
       getComponentEvents(),
       fileDirective,
       functionDirectives,
     );
+
+    const serverActionExports = fileKind === 'server-action' && ast
+      ? extractServerActionExports(ast)
+      : [];
 
     const importedComponents = ast
       ? this.buildImportedComponents(filePath, ast, code, fileDirective)
@@ -50,12 +57,15 @@ export class Analyzer {
 
     return {
       filePath,
+      fileKind,
       directive: fileDirective,
       framework: this.framework,
       declaredComponents,
+      serverActionExports,
       importedComponents,
       compiledCode,
       compilerDiagnostics,
+      serverOnlyImportLine,
     };
   }
 
@@ -223,6 +233,7 @@ export class Analyzer {
           directive,
           inheritedDirective: directive === null ? fileDirective : null,
           sourceFilePath: resolvedPath,
+          sourceFileKind: deriveSourceFileKind(directive, this.framework),
         };
       });
   }
@@ -294,6 +305,94 @@ function cleanSkipReason(reason: string): string {
     return 'opt-out directive';
   }
   return reason.replace(/\.$/, '');
+}
+
+/** Detect `import 'server-only'` and return its line number, or null. ESM import only. */
+export function detectServerOnlyImportLine(ast: t.File): number | null {
+  for (const node of ast.program.body) {
+    if (node.type === 'ImportDeclaration' && node.source.value === 'server-only') {
+      return node.loc?.start.line ?? 1;
+    }
+  }
+  return null;
+}
+
+/** Extract exported function/variable names from a 'use server' file. */
+export function extractServerActionExports(ast: t.File): ServerActionExport[] {
+  const actions: ServerActionExport[] = [];
+
+  for (const node of ast.program.body) {
+    if (node.type === 'ExportNamedDeclaration') {
+      if (node.declaration?.type === 'FunctionDeclaration' && node.declaration.id) {
+        actions.push({
+          name: node.declaration.id.name,
+          line: node.declaration.loc?.start.line ?? 1,
+        });
+      }
+      if (node.declaration?.type === 'VariableDeclaration') {
+        for (const decl of node.declaration.declarations) {
+          if (decl.id.type === 'Identifier') {
+            actions.push({
+              name: decl.id.name,
+              line: decl.loc?.start.line ?? 1,
+            });
+          }
+        }
+      }
+      for (const spec of node.specifiers) {
+        if (spec.type === 'ExportSpecifier') {
+          const name = spec.exported.type === 'Identifier'
+            ? spec.exported.name : (spec.exported as t.StringLiteral).value;
+          actions.push({ name, line: spec.loc?.start.line ?? 1 });
+        }
+      }
+    }
+    if (node.type === 'ExportDefaultDeclaration') {
+      const decl = node.declaration;
+      actions.push({
+        name: decl.type === 'FunctionDeclaration' && decl.id ? decl.id.name : 'default',
+        line: decl.loc?.start.line ?? 1,
+      });
+    }
+  }
+
+  return actions;
+}
+
+/** Determine the kind of file based on directive, server-only import, and framework. */
+export function determineFileKind(
+  fileDirective: Directive,
+  hasServerOnlyImport: boolean,
+  framework: Framework,
+): FileKind {
+  if (fileDirective === 'use client') return 'client';
+  if (fileDirective === 'use server') return 'server-action';
+  if (hasServerOnlyImport) return 'server-only';
+  if (framework === 'nextjs') return 'server-default';
+  return 'unknown';
+}
+
+/** Label for a declared component based on its directive and the file kind. */
+export function getDeclaredComponentLabel(
+  compDirective: Directive,
+  fileKind: FileKind,
+  showDefaultSuffix: boolean,
+): string | null {
+  if (compDirective === 'use client') return 'Client Component';
+  if (compDirective === 'use server') return 'Server Action';
+  if (fileKind === 'server-default') {
+    return showDefaultSuffix ? 'Server Component (default)' : 'Server Component';
+  }
+  if (fileKind === 'server-only') return 'server-only';
+  return null;
+}
+
+/** Derive the FileKind of a source file from its resolved directive. */
+export function deriveSourceFileKind(sourceDirective: Directive, framework: Framework): FileKind {
+  if (sourceDirective === 'use client') return 'client';
+  if (sourceDirective === 'use server') return 'server-action';
+  if (framework === 'nextjs') return 'server-default';
+  return 'unknown';
 }
 
 /** Simple PascalCase check for filtering imported component names. */
