@@ -6,7 +6,7 @@ export default defineConfig([
     output: {
       dir: 'dist/client',
       format: 'cjs',
-      sourcemap: true,
+      sourcemap: 'hidden',
       entryFileNames: '[name].js',
     },
     external: ['vscode'],
@@ -17,7 +17,7 @@ export default defineConfig([
     output: {
       dir: 'dist/server',
       format: 'cjs',
-      sourcemap: true,
+      sourcemap: 'hidden',
       entryFileNames: '[name].js',
     },
     platform: 'node',

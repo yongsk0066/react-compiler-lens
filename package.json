@@ -17,15 +17,47 @@
     "react-compiler",
     "codelens",
     "server-components",
-    "nextjs"
+    "nextjs",
+    "memoization",
+    "optimization",
+    "use client",
+    "use server",
+    "rsc",
+    "jsx",
+    "tsx",
+    "diagnostics",
+    "react server components",
+    "compiled output"
   ],
   "preview": true,
+  "badges": [
+    {
+      "url": "https://img.shields.io/visual-studio-marketplace/v/yongsk0066.react-compiler-lens",
+      "href": "https://marketplace.visualstudio.com/items?itemName=yongsk0066.react-compiler-lens",
+      "description": "VS Marketplace Version"
+    },
+    {
+      "url": "https://img.shields.io/visual-studio-marketplace/i/yongsk0066.react-compiler-lens",
+      "href": "https://marketplace.visualstudio.com/items?itemName=yongsk0066.react-compiler-lens",
+      "description": "Installs"
+    },
+    {
+      "url": "https://img.shields.io/github/license/yongsk0066/react-compiler-lens",
+      "href": "https://github.com/yongsk0066/react-compiler-lens/blob/main/LICENSE",
+      "description": "License"
+    }
+  ],
   "engines": {
     "vscode": "^1.110.0"
   },
   "categories": [
-    "Programming Languages"
+    "Linters",
+    "Visualization"
   ],
+  "galleryBanner": {
+    "color": "#20232a",
+    "theme": "dark"
+  },
   "activationEvents": [
     "onLanguage:javascriptreact",
     "onLanguage:typescriptreact"
