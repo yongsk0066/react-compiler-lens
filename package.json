@@ -2,7 +2,7 @@
   "name": "react-compiler-lens",
   "displayName": "React Compiler Lens",
   "description": "CodeLens annotations for React components using the React Compiler as SSOT",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "packageManager": "pnpm@10.30.3",
   "license": "MIT",
   "publisher": "yongsk0066",
@@ -12,7 +12,13 @@
   },
   "homepage": "https://github.com/yongsk0066/react-compiler-lens#readme",
   "bugs": "https://github.com/yongsk0066/react-compiler-lens/issues",
-  "keywords": ["react", "react-compiler", "codelens", "server-components", "nextjs"],
+  "keywords": [
+    "react",
+    "react-compiler",
+    "codelens",
+    "server-components",
+    "nextjs"
+  ],
   "preview": true,
   "engines": {
     "vscode": "^1.110.0"

@@ -16,45 +16,53 @@ React Compiler Lens runs the compiler in the background and shows the result inl
 
 ## Features
 
-- **Server / Client Component labels** on declarations, imports, and JSX usage (resolves `"use client"` through re-export chains)
-- **Compilation status** — Optimized, Not Optimized (with error count), or Skipped (with reason)
+- **Server / Client Component labels** on declarations, imports, and JSX usage — resolves `"use client"` through re-export chains and barrel files
+- **Directive inheritance** — imports in a `"use client"` file show "Client Component (inherited)"
+- **Compilation status** — Optimized, Not Optimized (with error count and category), or Skipped (with reason)
+- **Reactive values** — shows which dependencies the compiler tracks (`Optimized · reactive: count, items`)
+- **Rich diagnostics** — compilation errors with category, description, and related source locations in the Problems panel
 - **Compiled output preview** — click the CodeLens to see what the compiler produces (side tab or peek view)
-- **Diagnostics** — compilation errors surface in the Problems panel
-- **Next.js auto-detection** — files without a directive are treated as Server Components when `next.config.*` is present
+- **FileKind detection** — classifies files as client, server-action, server-only, or server-default
+- **Next.js auto-detection** — detects `next.config.*` for framework-aware labeling
+- **React Compiler classification** — uses the compiler's own logic to identify components (not just PascalCase)
 
 ## Install
 
-Search **React Compiler Lens** in the VS Code Marketplace, or install from `.vsix`:
+Search **React Compiler Lens** in the VS Code Marketplace, or:
 
 ```
-code --install-extension react-compiler-lens-0.0.1.vsix
+code --install-extension react-compiler-lens-0.0.6.vsix
 ```
 
 ## Settings
 
 | Setting | Default | Description |
 |---|---|---|
-| `reactCompilerLens.enabled` | `true` | Enable/disable the extension |
-| `reactCompilerLens.codeLens.serverComponent` | `true` | Show CodeLens for Server Components |
-| `reactCompilerLens.codeLens.clientComponent` | `true` | Show CodeLens for Client Components |
-| `reactCompilerLens.codeLens.compilationStatus` | `true` | Show compilation status in CodeLens |
-| `reactCompilerLens.diagnostics.enabled` | `true` | Show compilation errors in Problems panel |
-| `reactCompilerLens.diagnostics.severity` | `"warning"` | Severity level: `warning`, `error`, or `info` |
-| `reactCompilerLens.framework` | `"auto"` | Framework detection: `auto`, `nextjs`, or `none` |
-| `reactCompilerLens.compiledOutput.viewMode` | `"side"` | How to display compiled output: `side` or `peek` |
+| `enabled` | `true` | Enable/disable the extension |
+| `codeLens.serverComponent` | `true` | Show CodeLens for Server Components |
+| `codeLens.clientComponent` | `true` | Show CodeLens for Client Components |
+| `codeLens.compilationStatus` | `true` | Show compilation status |
+| `codeLens.serverAction` | `true` | Show CodeLens for Server Actions |
+| `codeLens.serverOnly` | `true` | Show CodeLens for server-only files |
+| `codeLens.reactiveValues` | `true` | Show reactive dependency names |
+| `codeLens.reactiveValuesMaxDisplay` | `3` | Max reactive values before truncating |
+| `codeLens.importedComponentJsxLens` | `true` | Show labels at JSX usage sites |
+| `codeLens.showInheritedSuffix` | `true` | Show "(inherited)" on inherited labels |
+| `codeLens.showDefaultSuffix` | `true` | Show "(default)" for implicit Server Components |
+| `diagnostics.enabled` | `true` | Show errors in Problems panel |
+| `diagnostics.severity` | `"warning"` | Severity: `warning`, `error`, or `info` |
+| `diagnostics.showDescription` | `true` | Include extended description |
+| `diagnostics.showRelatedLocations` | `true` | Show related source locations |
+| `framework` | `"auto"` | Framework detection: `auto`, `nextjs`, or `none` |
+| `compiledOutput.viewMode` | `"side"` | Display mode: `side` or `peek` |
 
-## Commands
-
-| Command | Description |
-|---|---|
-| `React Compiler Lens: Refresh` | Clear caches and re-analyze all open files |
-| `React Compiler Lens: Peek Compiled Output` | Show compiled output for a component |
+All settings are under the `reactCompilerLens` namespace.
 
 ## How It Works
 
-The extension runs an LSP server that invokes `babel-plugin-react-compiler` on each file. The compiler's logger events tell us exactly which functions were compiled, skipped, or rejected. We reuse the same Babel parse for both compilation and AST analysis (directive extraction, import resolution, JSX usage).
+The extension runs an LSP server that invokes `babel-plugin-react-compiler` on each file. The compiler's logger events tell us exactly which functions were compiled, skipped, or rejected. Component classification uses the same logic the React Compiler uses internally — not just naming conventions.
 
-Results are cached by content hash and debounced at 200ms to avoid redundant work during rapid edits.
+Results are cached by content hash and debounced at 200ms.
 
 ## License
 
