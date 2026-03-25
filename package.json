@@ -2,7 +2,7 @@
   "name": "react-compiler-lens",
   "displayName": "React Compiler Lens",
   "description": "CodeLens annotations for React components using the React Compiler as SSOT",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "packageManager": "pnpm@10.30.3",
   "license": "MIT",
   "publisher": "yongsk0066",
@@ -88,19 +88,25 @@
             "id": "openReactFile",
             "title": "Open a React Component",
             "description": "Open any `.tsx` or `.jsx` file. CodeLens annotations appear automatically above components.",
-            "media": { "markdown": "" }
+            "media": {
+              "markdown": ""
+            }
           },
           {
             "id": "viewCompiled",
             "title": "View Compiled Output",
             "description": "Click an **Optimized** CodeLens to see the compiler's output.\n\n[View Compiled Output](command:reactCompilerLens.peekCompiled)",
-            "media": { "markdown": "" }
+            "media": {
+              "markdown": ""
+            }
           },
           {
             "id": "checkDiagnostics",
             "title": "Check Diagnostics",
             "description": "Compilation errors appear in the Problems panel.\n\n[Show Problems](command:reactCompilerLens.showProblems)",
-            "media": { "markdown": "" }
+            "media": {
+              "markdown": ""
+            }
           }
         ]
       }

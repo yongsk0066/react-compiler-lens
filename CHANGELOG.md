@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.0.7 (2026-03-26)
+
+### Performance
+- Eliminate data race on `reactiveValuesMap` (moved to local variable)
+- Reduce Babel parsing from 3x to 1x per file (AST reuse from compiler)
+- Bound `ImportResolver.fileCache` to 500 entries (FIFO eviction)
+- Cache re-export chain resolution results
+- Prevent concurrent analysis for same file (in-flight guard)
+- Add 10s compile timeout to prevent LSP blocking
+
+### Security
+- Pin all GitHub Actions to immutable commit SHAs
+- Add `permissions: contents: read` to CI workflow
+- Use `pnpm install --frozen-lockfile` in CI
+- Add workspace boundary check in import resolution
+- Hidden sourcemaps (no dangling references in shipped JS)
+
+### Testing
+- Extract LSP server pure functions to `labels.ts` (testable)
+- 112 tests (was 87) — labels, edge cases, deterministic bailout diagnostics
+
+### Marketplace
+- Categories: Linters + Visualization
+- Keywords expanded to 15
+- Gallery banner, badges
+- README restructured for marketplace (badges, tagline, Quick Start, collapsible settings)
+- Getting Started walkthrough
+
+### Contributor Experience
+- CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md
+- Issue templates (bug report, feature request)
+- Pull request template
+- Dependabot for GitHub Actions
+- .editorconfig, .node-version
+
 ## 0.0.6 (2026-03-26)
 
 - FileKind system: classify files as client, server-action, server-only, server-default
