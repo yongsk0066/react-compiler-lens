@@ -30,8 +30,14 @@ interface Config {
   serverAction: boolean;
   serverOnly: boolean;
   showDefaultSuffix: boolean;
+  reactiveValues: boolean;
+  reactiveValuesMaxDisplay: number;
+  importedComponentJsxLens: boolean;
+  showInheritedSuffix: boolean;
   diagnosticsEnabled: boolean;
   diagnosticsSeverity: string;
+  showDescription: boolean;
+  showRelatedLocations: boolean;
   framework: string;
 }
 
@@ -43,8 +49,14 @@ const defaultConfig: Config = {
   serverAction: true,
   serverOnly: true,
   showDefaultSuffix: true,
+  reactiveValues: true,
+  reactiveValuesMaxDisplay: 3,
+  importedComponentJsxLens: true,
+  showInheritedSuffix: true,
   diagnosticsEnabled: true,
   diagnosticsSeverity: 'warning',
+  showDescription: true,
+  showRelatedLocations: true,
   framework: 'auto',
 };
 
@@ -144,8 +156,14 @@ connection.onDidChangeConfiguration(change => {
     serverAction: (codeLens?.['serverAction'] as boolean) ?? defaultConfig.serverAction,
     serverOnly: (codeLens?.['serverOnly'] as boolean) ?? defaultConfig.serverOnly,
     showDefaultSuffix: (codeLens?.['showDefaultSuffix'] as boolean) ?? defaultConfig.showDefaultSuffix,
+    reactiveValues: (codeLens?.['reactiveValues'] as boolean) ?? defaultConfig.reactiveValues,
+    reactiveValuesMaxDisplay: (codeLens?.['reactiveValuesMaxDisplay'] as number) ?? defaultConfig.reactiveValuesMaxDisplay,
+    importedComponentJsxLens: (codeLens?.['importedComponentJsxLens'] as boolean) ?? defaultConfig.importedComponentJsxLens,
+    showInheritedSuffix: (codeLens?.['showInheritedSuffix'] as boolean) ?? defaultConfig.showInheritedSuffix,
     diagnosticsEnabled: (diagnostics?.['enabled'] as boolean) ?? defaultConfig.diagnosticsEnabled,
     diagnosticsSeverity: (diagnostics?.['severity'] as string) ?? defaultConfig.diagnosticsSeverity,
+    showDescription: (diagnostics?.['showDescription'] as boolean) ?? defaultConfig.showDescription,
+    showRelatedLocations: (diagnostics?.['showRelatedLocations'] as boolean) ?? defaultConfig.showRelatedLocations,
     framework: (s['framework'] as string) ?? defaultConfig.framework,
   };
 
@@ -245,7 +263,7 @@ function publishDiagnostics(uri: string, result: FileAnalysisResult): void {
 
       const categoryPrefix = info.category ? `[${info.category}] ` : '';
       let message = `${categoryPrefix}[${comp.name}] ${info.message}`;
-      if (info.description) {
+      if (config.showDescription && info.description) {
         message += `\n${info.description}`;
       }
       if (info.details) {
@@ -263,7 +281,7 @@ function publishDiagnostics(uri: string, result: FileAnalysisResult): void {
       };
 
       // Add related locations (e.g., freeze point + mutation point)
-      if (info.details) {
+      if (config.showRelatedLocations && info.details) {
         const errorLocs = info.details.filter(d => d.kind === 'error' && d.line != null);
         if (errorLocs.length > 0) {
           diag.relatedInformation = errorLocs.map(d => ({
@@ -368,7 +386,9 @@ connection.onCodeLens(params => {
 
       const baseLabel = getKindLabel(effectiveDirective);
       if (!baseLabel) continue;
-      label = imp.directive ? baseLabel : `${baseLabel} (inherited)`;
+      label = imp.directive
+        ? baseLabel
+        : config.showInheritedSuffix ? `${baseLabel} (inherited)` : baseLabel;
     } else if (imp.sourceFileKind === 'server-default' && config.serverComponent) {
       label = config.showDefaultSuffix
         ? 'Server Component (default)' : 'Server Component';
@@ -382,12 +402,14 @@ connection.onCodeLens(params => {
       label,
     ));
 
-    for (const jsxLoc of imp.jsxLocations) {
-      lenses.push(createLabelOnlyLens(
-        Math.max(0, jsxLoc.line - 1),
-        jsxLoc.column,
-        label,
-      ));
+    if (config.importedComponentJsxLens) {
+      for (const jsxLoc of imp.jsxLocations) {
+        lenses.push(createLabelOnlyLens(
+          Math.max(0, jsxLoc.line - 1),
+          jsxLoc.column,
+          label,
+        ));
+      }
     }
   }
 
@@ -409,12 +431,12 @@ function buildDeclaredComponentLens(
   if (compileResult.status === 'success') {
     let title = `${prefix}Optimized`;
 
-    if (compileResult.reactiveValues.length > 0) {
-      const MAX_DISPLAY = 3;
+    if (config.reactiveValues && compileResult.reactiveValues.length > 0) {
+      const maxDisplay = config.reactiveValuesMaxDisplay;
       const names = compileResult.reactiveValues;
-      const display = names.length <= MAX_DISPLAY
+      const display = names.length <= maxDisplay
         ? names.join(', ')
-        : `${names.slice(0, MAX_DISPLAY).join(', ')} +${names.length - MAX_DISPLAY}`;
+        : `${names.slice(0, maxDisplay).join(', ')} +${names.length - maxDisplay}`;
       title += ` · reactive: ${display}`;
     }
 

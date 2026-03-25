@@ -78,6 +78,28 @@
           "default": true,
           "description": "Show '(default)' suffix for implicit Server Components in Next.js"
         },
+        "reactCompilerLens.codeLens.reactiveValues": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show reactive dependency names in Optimized CodeLens"
+        },
+        "reactCompilerLens.codeLens.reactiveValuesMaxDisplay": {
+          "type": "integer",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Max reactive values to show before truncating"
+        },
+        "reactCompilerLens.codeLens.importedComponentJsxLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show component labels at JSX usage sites"
+        },
+        "reactCompilerLens.codeLens.showInheritedSuffix": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show (inherited) suffix on inherited directive labels"
+        },
         "reactCompilerLens.diagnostics.enabled": {
           "type": "boolean",
           "default": true,
@@ -92,6 +114,16 @@
           ],
           "default": "warning",
           "description": "Severity level for compilation diagnostics"
+        },
+        "reactCompilerLens.diagnostics.showDescription": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include extended description in Problems panel diagnostics"
+        },
+        "reactCompilerLens.diagnostics.showRelatedLocations": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show related source locations in diagnostics"
         },
         "reactCompilerLens.framework": {
           "type": "string",
@@ -126,13 +158,20 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:watch": "vitest",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint . --fix",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "prepackage": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "package": "vsce package --no-dependencies"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
     "@types/vscode": "^1.110.0",
     "@vscode/vsce": "^3.7.1",
-    "rolldown": "1.0.0-rc.10",
+    "oxfmt": "^0.42.0",
+    "oxlint": "^1.57.0",
+    "rolldown": "1.0.0-rc.12",
     "typescript": "^6.0.2",
     "vitest": "^4.1.0"
   }
