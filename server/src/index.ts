@@ -243,12 +243,42 @@ function publishDiagnostics(uri: string, result: FileAnalysisResult): void {
       const line = info.line !== null ? info.line - 1 : Math.max(0, comp.location.line - 1);
       const col = info.column !== null ? info.column : comp.location.column;
 
+      const categoryPrefix = info.category ? `[${info.category}] ` : '';
+      let message = `${categoryPrefix}[${comp.name}] ${info.message}`;
+      if (info.description) {
+        message += `\n${info.description}`;
+      }
+      if (info.details) {
+        const hints = info.details.filter(d => d.kind === 'hint');
+        if (hints.length > 0) {
+          message += '\n' + hints.map(h => `Hint: ${h.message}`).join('\n');
+        }
+      }
+
       const diag: Diagnostic = {
         range: Range.create(line, col, line, col + 1),
         severity,
         source: 'react-compiler',
-        message: `[${comp.name}] ${info.message}`,
+        message,
       };
+
+      // Add related locations (e.g., freeze point + mutation point)
+      if (info.details) {
+        const errorLocs = info.details.filter(d => d.kind === 'error' && d.line != null);
+        if (errorLocs.length > 0) {
+          diag.relatedInformation = errorLocs.map(d => ({
+            location: {
+              uri,
+              range: Range.create(
+                Math.max(0, d.line! - 1), d.column ?? 0,
+                Math.max(0, d.line! - 1), (d.column ?? 0) + 1,
+              ),
+            },
+            message: d.message,
+          }));
+        }
+      }
+
       diagnostics.push(diag);
     }
   }
@@ -383,10 +413,24 @@ function buildDeclaredComponentLens(
       arguments: [uri, name, line],
     };
   } else if (compileResult.status === 'error') {
-    const count = compileResult.diagnostics.length;
-    const statusLabel = count === 0
-      ? 'Not Optimized'
-      : `Not Optimized (${count} ${count === 1 ? 'error' : 'errors'})`;
+    const categories = [...new Set(
+      compileResult.diagnostics
+        .map(d => d.category)
+        .filter((c): c is string => c != null)
+    )];
+    const MAX_CATEGORIES = 2;
+    let statusLabel: string;
+    if (categories.length > 0) {
+      const display = categories.length <= MAX_CATEGORIES
+        ? categories.join(', ')
+        : `${categories.slice(0, MAX_CATEGORIES).join(', ')} +${categories.length - MAX_CATEGORIES}`;
+      statusLabel = `Not Optimized (${display})`;
+    } else {
+      const count = compileResult.diagnostics.length;
+      statusLabel = count === 0
+        ? 'Not Optimized'
+        : `Not Optimized (${count} ${count === 1 ? 'error' : 'errors'})`;
+    }
     lens.command = {
       title: `${prefix}${statusLabel}`,
       command: 'reactCompilerLens.showProblems',
