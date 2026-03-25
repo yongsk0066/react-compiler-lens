@@ -46,7 +46,16 @@ interface FileAnalysis {
 
 export class ImportResolver {
   private fileCache = new Map<string, FileAnalysis>();
+  private reExportCache = new Map<string, Directive>();
   private compilerOptionsCache = new Map<string, ts.CompilerOptions>();
+
+  private cacheSet(key: string, value: FileAnalysis): void {
+    if (this.fileCache.size >= 500 && !this.fileCache.has(key)) {
+      const oldest = this.fileCache.keys().next().value!;
+      this.fileCache.delete(oldest);
+    }
+    this.fileCache.set(key, value);
+  }
 
   private getCompilerOptions(dir: string): ts.CompilerOptions {
     if (this.compilerOptionsCache.has(dir)) {
@@ -92,7 +101,7 @@ export class ImportResolver {
     }
 
     const result = { directive, components };
-    this.fileCache.set(filePath, result);
+    this.cacheSet(filePath, result);
     return result;
   }
 
@@ -132,10 +141,16 @@ export class ImportResolver {
 
   public invalidate(filePath: string): void {
     this.fileCache.delete(filePath);
+    for (const key of this.reExportCache.keys()) {
+      if (key.startsWith(`${filePath}::`)) {
+        this.reExportCache.delete(key);
+      }
+    }
   }
 
   public clear(): void {
     this.fileCache.clear();
+    this.reExportCache.clear();
     this.compilerOptionsCache.clear();
   }
 
@@ -144,6 +159,11 @@ export class ImportResolver {
     importedName: string,
     visited: Set<string>,
   ): Directive {
+    const cacheKey = `${filePath}::${importedName}`;
+    if (this.reExportCache.has(cacheKey)) {
+      return this.reExportCache.get(cacheKey)!;
+    }
+
     if (visited.has(filePath)) return null;
     visited.add(filePath);
 
@@ -177,24 +197,36 @@ export class ImportResolver {
           if (!sourcePath) continue;
 
           const sourceDirective = this.getDirective(sourcePath);
-          if (sourceDirective !== null) return sourceDirective;
+          if (sourceDirective !== null) {
+            this.reExportCache.set(cacheKey, sourceDirective);
+            return sourceDirective;
+          }
 
-          return this.followReExportChain(sourcePath, importedName, visited);
+          const chained = this.followReExportChain(sourcePath, importedName, visited);
+          this.reExportCache.set(cacheKey, chained);
+          return chained;
         }
 
         // Star re-exports via ExportNamedDeclaration with no specifiers
         if (node.specifiers.length === 0) {
           const result = this.resolveStarExport(filePath, node.source.value, importedName, visited);
-          if (result !== null) return result;
+          if (result !== null) {
+            this.reExportCache.set(cacheKey, result);
+            return result;
+          }
         }
       }
 
       if (node.type === 'ExportAllDeclaration') {
         const result = this.resolveStarExport(filePath, node.source.value, importedName, visited);
-        if (result !== null) return result;
+        if (result !== null) {
+          this.reExportCache.set(cacheKey, result);
+          return result;
+        }
       }
     }
 
+    this.reExportCache.set(cacheKey, null);
     return null;
   }
 

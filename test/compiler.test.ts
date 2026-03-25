@@ -114,4 +114,12 @@ describe('compileFile', () => {
     expect(names).toContain('App');
     expect(names).not.toContain('useCounter');
   });
+
+  it('handles empty file without crashing', async () => {
+    const result = await compileFile('', 'empty.tsx');
+    expect(result.events).toEqual([]);
+    // Empty file compiles to empty string (not null) — no components to optimize
+    expect(result.compiledCode ?? '').toBe('');
+    expect(result.getComponentEvents()).toEqual([]);
+  });
 });

@@ -14,12 +14,11 @@ import {
 } from 'vscode-languageserver/node';
 import { Analyzer, getDeclaredComponentLabel } from './analyzer';
 import { detectFramework } from './framework';
+import { getKindLabel, mapSeverity, shouldShowDeclaredComponent } from './labels';
 import type {
   FileAnalysisResult,
   DeclaredComponentAnalysis,
-  Directive,
   Framework,
-  FileKind,
 } from '@react-compiler-lens/shared';
 
 interface Config {
@@ -76,38 +75,6 @@ const DEBOUNCE_MS = 200;
 
 function md5(content: string): string {
   return crypto.createHash('md5').update(content).digest('hex');
-}
-
-function getKindLabel(directive: Directive): string | null {
-  if (directive === 'use client') return 'Client Component';
-  if (directive === 'use server') return 'Server Action';
-  return null;
-}
-
-function mapSeverity(severityStr: string): DiagnosticSeverity {
-  switch (severityStr) {
-    case 'error':
-      return DiagnosticSeverity.Error;
-    case 'info':
-      return DiagnosticSeverity.Information;
-    case 'warning':
-    default:
-      return DiagnosticSeverity.Warning;
-  }
-}
-
-function shouldShowDeclaredComponent(
-  compDirective: Directive,
-  fileKind: FileKind,
-  cfg: Config,
-): boolean {
-  if (compDirective === 'use client' && !cfg.clientComponent) return false;
-  if (compDirective === 'use server' && !cfg.serverComponent) return false;
-  if (compDirective === null) {
-    if (fileKind === 'server-default' && !cfg.serverComponent) return false;
-    if (fileKind === 'server-only' && !cfg.serverOnly) return false;
-  }
-  return true;
 }
 
 function createLabelOnlyLens(line: number, col: number, label: string): CodeLens {
@@ -232,6 +199,7 @@ async function runAnalysis(document: TextDocument): Promise<void> {
   let result: FileAnalysisResult;
   try {
     result = await analyzer.analyze(filePath, content);
+    analyzer.invalidateFile(filePath);
   } catch (err) {
     connection.console.error(`Analysis failed for ${uri}: ${err instanceof Error ? err.message : String(err)}`);
     return;

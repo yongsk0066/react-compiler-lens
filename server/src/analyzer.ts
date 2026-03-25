@@ -30,6 +30,10 @@ export class Analyzer {
     this.importResolver = options.importResolver ?? new ImportResolver();
   }
 
+  invalidateFile(filePath: string): void {
+    this.importResolver.invalidate(filePath);
+  }
+
   async analyze(filePath: string, code: string): Promise<FileAnalysisResult> {
     const compileResult = await compileFile(code, filePath);
     const { events, compiledCode, getComponentEvents } = compileResult;

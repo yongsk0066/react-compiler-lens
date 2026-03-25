@@ -95,4 +95,12 @@ describe('classifyFunctions', () => {
     `);
     expect(result.get('Page')).toBe('Component');
   });
+
+  it('returns empty map for types-only file', () => {
+    const result = classify(`
+      export interface User { id: number; name: string; }
+      export type Status = 'active' | 'inactive';
+    `);
+    expect(result.size).toBe(0);
+  });
 });
