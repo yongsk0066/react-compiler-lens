@@ -24,6 +24,7 @@ interface JsxUsageMap {
 export class Analyzer {
   private framework: Framework;
   private importResolver: ImportResolver;
+  private reactiveValuesMap: Map<string, string[]> = new Map();
 
   constructor(options: AnalyzerOptions) {
     this.framework = options.framework;
@@ -39,6 +40,9 @@ export class Analyzer {
 
     const serverOnlyImportLine = ast ? detectServerOnlyImportLine(ast) : null;
     const fileKind = determineFileKind(fileDirective, serverOnlyImportLine !== null, this.framework);
+
+    // Compute reactive values from compiled output
+    this.reactiveValuesMap = compiledCode ? buildReactiveValuesMap(compiledCode) : new Map();
 
     const declaredComponents = this.buildDeclaredComponents(
       getComponentEvents(),
@@ -121,6 +125,7 @@ export class Analyzer {
         memoValues: raw.memoValues,
         prunedMemoBlocks: raw.prunedMemoBlocks,
         prunedMemoValues: raw.prunedMemoValues,
+        reactiveValues: this.reactiveValuesMap.get(name) ?? [],
       };
     }
 
@@ -223,15 +228,22 @@ export class Analyzer {
       .filter(e => e.kind === 'CompileDiagnostic')
       .map(e => {
         const raw = e.raw as { kind: 'CompileDiagnostic'; detail: unknown };
-        const detail = raw.detail as any;
-        const loc = safeGetLocation(detail?.loc ?? detail?.primaryLocation?.());
+        const detail = raw.detail;
+        if (isCompilerDiagnostic(detail)) {
+          const enriched = this.extractFromCompilerDiagnostic(detail);
+          return { ...enriched, severity: 'info' as const };
+        }
+        if (isCompilerErrorDetail(detail)) {
+          const enriched = this.extractFromErrorDetail(detail);
+          return { ...enriched, severity: 'info' as const };
+        }
+        const d = detail as { reason?: string; loc?: unknown };
+        const loc = safeGetLocation(d?.loc);
         return {
-          message: typeof detail?.reason === 'string' ? detail.reason : String(detail),
+          message: typeof d?.reason === 'string' ? d.reason : String(d),
           line: loc?.line ?? e.fnLoc?.start.line ?? null,
           column: loc?.column ?? e.fnLoc?.start.column ?? null,
           severity: 'info' as const,
-          category: typeof detail?.category === 'string' ? detail.category : undefined,
-          description: typeof detail?.description === 'string' ? detail.description : undefined,
         };
       });
   }
@@ -365,6 +377,119 @@ function isCompilerErrorDetail(detail: unknown): detail is CompilerErrorDetail {
     && 'category' in detail && 'reason' in detail
     && typeof (detail as any).reason === 'string'
     && !('options' in detail);
+}
+
+// ── Reactive values extraction (compiled output parsing) ──
+
+/** Extract per-function reactive dependencies from compiled React Compiler output. */
+function buildReactiveValuesMap(compiledCode: string): Map<string, string[]> {
+  let ast: ReturnType<typeof parseCode>;
+  try {
+    ast = parseCode(compiledCode);
+  } catch {
+    return new Map();
+  }
+  if (!ast) return new Map();
+
+  const result = new Map<string, string[]>();
+
+  for (const node of ast.program.body) {
+    const fn = toNamedFunction(node);
+    if (!fn) continue;
+    const deps = findCacheDeps(fn.body);
+    if (deps.length > 0) result.set(fn.name, deps);
+  }
+
+  return result;
+}
+
+/** Extract {name, body} from various function declaration patterns in compiled output. */
+function toNamedFunction(node: t.Statement): { name: string; body: t.BlockStatement } | null {
+  // function Foo() {}
+  if (node.type === 'FunctionDeclaration' && node.id?.name) {
+    return { name: node.id.name, body: node.body };
+  }
+  // export default function Foo() {}
+  if (node.type === 'ExportDefaultDeclaration') {
+    const decl = node.declaration;
+    if (decl.type === 'FunctionDeclaration' && decl.id?.name) {
+      return { name: decl.id.name, body: decl.body };
+    }
+  }
+  // export function Foo() {} OR export const Foo = () => {}
+  if (node.type === 'ExportNamedDeclaration' && node.declaration) {
+    if (node.declaration.type === 'FunctionDeclaration' && node.declaration.id?.name) {
+      return { name: node.declaration.id.name, body: node.declaration.body };
+    }
+    if (node.declaration.type === 'VariableDeclaration') {
+      for (const decl of node.declaration.declarations) {
+        if (decl.id?.type === 'Identifier' && decl.init) {
+          if (decl.init.type === 'ArrowFunctionExpression' && decl.init.body?.type === 'BlockStatement') {
+            return { name: decl.id.name, body: decl.init.body };
+          }
+          if (decl.init.type === 'FunctionExpression') {
+            return { name: decl.id.name, body: decl.init.body };
+          }
+        }
+      }
+    }
+  }
+  // const Foo = () => {} (non-exported)
+  if (node.type === 'VariableDeclaration') {
+    for (const decl of node.declarations) {
+      if (decl.id?.type === 'Identifier' && decl.init) {
+        if (decl.init.type === 'ArrowFunctionExpression' && decl.init.body?.type === 'BlockStatement') {
+          return { name: decl.id.name, body: decl.init.body };
+        }
+        if (decl.init.type === 'FunctionExpression') {
+          return { name: decl.id.name, body: decl.init.body };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/** Find cache dependency identifiers from $[N] !== dep patterns in a function body. */
+function findCacheDeps(body: any): string[] {
+  const deps: string[] = [];
+  walkAst(body as unknown as t.Node, node => {
+    if (node.type !== 'BinaryExpression') return;
+    const bin = node as t.BinaryExpression;
+    if (bin.operator !== '!==') return;
+    if (!isCacheSlot(bin.left)) return;
+    const name = toDepString(bin.right);
+    if (name && name !== '$' && !deps.includes(name)) {
+      deps.push(name);
+    }
+  });
+  return deps;
+}
+
+/** Check if an AST node is a cache slot access: $[N] */
+function isCacheSlot(node: t.Node): boolean {
+  if (node.type !== 'MemberExpression') return false;
+  const m = node as t.MemberExpression;
+  return m.object.type === 'Identifier'
+    && (m.object as t.Identifier).name === '$'
+    && m.computed
+    && m.property.type === 'NumericLiteral';
+}
+
+/** Convert AST expression to readable dependency string. */
+function toDepString(node: t.Node): string | null {
+  if (node.type === 'Identifier') return (node as t.Identifier).name;
+  if (node.type === 'MemberExpression' && !(node as t.MemberExpression).computed) {
+    const obj = toDepString((node as t.MemberExpression).object as t.Node);
+    const prop = ((node as t.MemberExpression).property as t.Identifier).name;
+    return obj ? `${obj}.${prop}` : null;
+  }
+  if (node.type === 'OptionalMemberExpression' && !(node as any).computed) {
+    const obj = toDepString((node as any).object as t.Node);
+    const prop = ((node as any).property as t.Identifier).name;
+    return obj ? `${obj}?.${prop}` : null;
+  }
+  return null;
 }
 
 function cleanSkipReason(reason: string): string {

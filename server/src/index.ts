@@ -407,8 +407,19 @@ function buildDeclaredComponentLens(
   const line = Math.max(0, comp.location.line - 1);
 
   if (compileResult.status === 'success') {
+    let title = `${prefix}Optimized`;
+
+    if (compileResult.reactiveValues.length > 0) {
+      const MAX_DISPLAY = 3;
+      const names = compileResult.reactiveValues;
+      const display = names.length <= MAX_DISPLAY
+        ? names.join(', ')
+        : `${names.slice(0, MAX_DISPLAY).join(', ')} +${names.length - MAX_DISPLAY}`;
+      title += ` · reactive: ${display}`;
+    }
+
     lens.command = {
-      title: `${prefix}Optimized`,
+      title,
       command: 'reactCompilerLens.peekCompiled',
       arguments: [uri, name, line],
     };
