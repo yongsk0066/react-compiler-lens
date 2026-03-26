@@ -44,6 +44,8 @@ interface FileAnalysis {
   components: Map<string, ReactFunctionType>;
 }
 
+const MAX_FILE_CACHE_SIZE = 500; // Max resolved-file analysis entries
+
 export class ImportResolver {
   private workspaceRoot: string | null = null;
   private fileCache = new Map<string, FileAnalysis>();
@@ -55,7 +57,7 @@ export class ImportResolver {
   }
 
   private cacheSet(key: string, value: FileAnalysis): void {
-    if (this.fileCache.size >= 500 && !this.fileCache.has(key)) {
+    if (this.fileCache.size >= MAX_FILE_CACHE_SIZE && !this.fileCache.has(key)) {
       const oldest = this.fileCache.keys().next().value!;
       this.fileCache.delete(oldest);
     }
@@ -95,7 +97,10 @@ export class ImportResolver {
 
   public getFileAnalysis(filePath: string): FileAnalysis {
     if (this.fileCache.has(filePath)) {
-      return this.fileCache.get(filePath)!;
+      const cached = this.fileCache.get(filePath)!;
+      this.fileCache.delete(filePath);
+      this.fileCache.set(filePath, cached);
+      return cached;
     }
 
     let directive: Directive = null;
