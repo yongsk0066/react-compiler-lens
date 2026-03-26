@@ -63,6 +63,37 @@ All settings are under the `reactCompilerLens` namespace.
 
 </details>
 
+## Troubleshooting
+
+### CodeLens not appearing?
+- Ensure your file is `.tsx` or `.jsx` — the extension activates on these languages only
+- Check the Output panel → select "React Compiler Lens" channel for error details
+- Try the command: **React Compiler Lens: Refresh**
+
+### Extension not activating?
+- Verify `babel-plugin-react-compiler` is installed in your project
+- Check the Extensions panel to confirm React Compiler Lens is enabled
+
+### "Not Optimized" on most components?
+- Click the category badge (e.g., `Refs`) in the Problems panel for details
+- Common causes: ref access during render, setState in render, impure function calls
+- Some patterns are not yet supported by the React Compiler
+
+### Wrong framework detection?
+- Set `reactCompilerLens.framework` to `"nextjs"` or `"none"` manually in settings
+- Auto-detection looks for `next.config.{js,ts,mjs}` in your workspace root
+
+### Performance issues?
+- Increase debounce delay: `reactCompilerLens.analysis.debounceMs` (default: 200ms)
+- Files larger than 500K characters are automatically skipped
+
+## Known Limitations
+
+- Only analyzes `.tsx` and `.jsx` files (not `.ts` or `.js` without JSX)
+- Packages in `node_modules` are not analyzed for directives
+- Reactive values are extracted from compiled output and may not capture all dependency patterns
+- Server Action import labels are not yet supported (actions use camelCase names, bypassing component detection)
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
