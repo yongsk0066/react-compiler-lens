@@ -394,8 +394,11 @@ function isCompilerErrorDetail(detail: unknown): detail is CompilerErrorDetail {
 
 // ── Reactive values extraction (compiled output parsing) ──
 
-/** Extract per-function reactive dependencies from compiled React Compiler output. */
-function buildReactiveValuesMap(compiledCode: string): Map<string, string[]> {
+/**
+ * Extract per-function reactive dependencies from compiled React Compiler output.
+ * @internal — exported for testing only
+ */
+export function buildReactiveValuesMap(compiledCode: string): Map<string, string[]> {
   let ast: ReturnType<typeof parseCode>;
   try {
     ast = parseCode(compiledCode);
