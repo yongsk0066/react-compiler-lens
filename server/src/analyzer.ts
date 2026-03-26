@@ -467,9 +467,9 @@ function toNamedFunction(node: t.Statement): { name: string; body: t.BlockStatem
 }
 
 /** Find cache dependency identifiers from $[N] !== dep patterns in a function body. */
-function findCacheDeps(body: any): string[] {
+function findCacheDeps(body: t.Node): string[] {
   const deps: string[] = [];
-  walkAst(body as unknown as t.Node, node => {
+  walkAst(body, node => {
     if (node.type !== 'BinaryExpression') return;
     const bin = node as t.BinaryExpression;
     if (bin.operator !== '!==') return;

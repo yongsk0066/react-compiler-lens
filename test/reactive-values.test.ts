@@ -166,4 +166,19 @@ describe('buildReactiveValuesMap', () => {
     const map = buildReactiveValuesMap(code);
     expect(map.size).toBe(0);
   });
+
+  it('ignores computed member expression dep', () => {
+    const code = 'function Comp(t0) { const $ = _c(2); if ($[0] !== t0[key]) {} }';
+    expect(buildReactiveValuesMap(code).get('Comp')).toBeUndefined();
+  });
+
+  it('extracts deps for multiple functions in one file', () => {
+    const code = `
+      function A(t0) { const $ = _c(2); if ($[0] !== t0.x) {} }
+      function B(t0) { const $ = _c(2); if ($[0] !== t0.y) {} }
+    `;
+    const map = buildReactiveValuesMap(code);
+    expect(map.get('A')).toEqual(['t0.x']);
+    expect(map.get('B')).toEqual(['t0.y']);
+  });
 });

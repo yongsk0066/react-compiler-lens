@@ -113,7 +113,7 @@ export async function compileFile(
   };
 
   let compiledCode: string | null = null;
-  let timeoutId: ReturnType<typeof setTimeout>;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
   try {
     const transformPromise = transformFromAstAsync(ast, code, {
       filename,
@@ -132,7 +132,7 @@ export async function compileFile(
   } catch {
     // Transformation failed or timed out — events already captured via logger
   } finally {
-    clearTimeout(timeoutId!);
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
   }
 
   const classification = classifyFunctions(ast);

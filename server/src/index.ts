@@ -145,7 +145,9 @@ connection.onDidChangeConfiguration(change => {
     showDescription: (diagnostics?.['showDescription'] as boolean) ?? defaultConfig.showDescription,
     showRelatedLocations: (diagnostics?.['showRelatedLocations'] as boolean) ?? defaultConfig.showRelatedLocations,
     framework: (s['framework'] as string) ?? defaultConfig.framework,
-    debounceMs: Math.max(50, Math.min(2000, (analysis?.['debounceMs'] as number) ?? defaultConfig.debounceMs)),
+    debounceMs: Math.max(50, Math.min(2000,
+      typeof analysis?.['debounceMs'] === 'number' ? analysis['debounceMs'] : defaultConfig.debounceMs,
+    )),
   };
 
   if (config.framework !== 'auto') {

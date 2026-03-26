@@ -32,12 +32,12 @@
 
 The extension runs an LSP server that invokes `babel-plugin-react-compiler` on each file. The compiler's logger events tell us exactly which functions were compiled, skipped, or rejected. Component classification uses the same logic the React Compiler uses internally — not just naming conventions.
 
-Results are cached by content hash and debounced at 200ms.
+Results are cached by content hash and debounced (200ms default, configurable).
 
 ## Settings
 
 <details>
-<summary>All settings (17 options)</summary>
+<summary>All settings (18 options)</summary>
 
 All settings are under the `reactCompilerLens` namespace.
 
@@ -58,6 +58,7 @@ All settings are under the `reactCompilerLens` namespace.
 | `diagnostics.severity` | `"warning"` | Severity: `warning`, `error`, or `info` |
 | `diagnostics.showDescription` | `true` | Include extended description |
 | `diagnostics.showRelatedLocations` | `true` | Show related source locations |
+| `analysis.debounceMs` | `200` | Delay (ms) before re-analyzing (50–2000) |
 | `framework` | `"auto"` | Framework detection: `auto`, `nextjs`, or `none` |
 | `compiledOutput.viewMode` | `"side"` | Display mode: `side` or `peek` |
 
