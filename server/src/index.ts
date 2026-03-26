@@ -72,7 +72,17 @@ const contentHashCache = new Map<string, string>();
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const inFlightAnalysis = new Set<string>();
 
+const MAX_ANALYSIS_CACHE = 200;
 const DEBOUNCE_MS = 200;
+
+function cacheAnalysis(uri: string, result: FileAnalysisResult): void {
+  if (analysisCache.size >= MAX_ANALYSIS_CACHE && !analysisCache.has(uri)) {
+    const oldest = analysisCache.keys().next().value!;
+    analysisCache.delete(oldest);
+    contentHashCache.delete(oldest);
+  }
+  analysisCache.set(uri, result);
+}
 
 function md5(content: string): string {
   return crypto.createHash('md5').update(content).digest('hex');
@@ -211,7 +221,7 @@ async function runAnalysis(document: TextDocument): Promise<void> {
       return;
     }
 
-    analysisCache.set(uri, result);
+    cacheAnalysis(uri, result);
 
     if (config.diagnosticsEnabled) {
       publishDiagnostics(uri, result);
