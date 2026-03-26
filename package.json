@@ -2,7 +2,7 @@
   "name": "react-compiler-lens",
   "displayName": "React Compiler Lens",
   "description": "CodeLens annotations for React components using the React Compiler as SSOT",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "packageManager": "pnpm@10.30.3",
   "license": "MIT",
   "publisher": "yongsk0066",
