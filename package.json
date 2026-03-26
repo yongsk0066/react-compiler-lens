@@ -76,6 +76,10 @@
       {
         "command": "reactCompilerLens.peekCompiled",
         "title": "React Compiler Lens: Peek Compiled Output"
+      },
+      {
+        "command": "reactCompilerLens.toggleEnabled",
+        "title": "React Compiler Lens: Toggle On/Off"
       }
     ],
     "walkthroughs": [
@@ -89,7 +93,7 @@
             "title": "Open a React Component",
             "description": "Open any `.tsx` or `.jsx` file. CodeLens annotations appear automatically above components.",
             "media": {
-              "markdown": ""
+              "markdown": "walkthrough/01-open-file.md"
             }
           },
           {
@@ -97,7 +101,7 @@
             "title": "View Compiled Output",
             "description": "Click an **Optimized** CodeLens to see the compiler's output.\n\n[View Compiled Output](command:reactCompilerLens.peekCompiled)",
             "media": {
-              "markdown": ""
+              "markdown": "walkthrough/02-view-compiled.md"
             }
           },
           {
@@ -105,7 +109,7 @@
             "title": "Check Diagnostics",
             "description": "Compilation errors appear in the Problems panel.\n\n[Show Problems](command:reactCompilerLens.showProblems)",
             "media": {
-              "markdown": ""
+              "markdown": "walkthrough/03-diagnostics.md"
             }
           }
         ]
@@ -195,6 +199,13 @@
           "type": "boolean",
           "default": true,
           "description": "Show related source locations in diagnostics"
+        },
+        "reactCompilerLens.analysis.debounceMs": {
+          "type": "integer",
+          "default": 200,
+          "minimum": 50,
+          "maximum": 2000,
+          "description": "Delay (ms) before re-analyzing after content changes"
         },
         "reactCompilerLens.framework": {
           "type": "string",
