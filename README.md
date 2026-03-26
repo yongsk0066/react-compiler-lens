@@ -32,12 +32,12 @@
 
 The extension runs an LSP server that invokes `babel-plugin-react-compiler` on each file. The compiler's logger events tell us exactly which functions were compiled, skipped, or rejected. Component classification uses the same logic the React Compiler uses internally — not just naming conventions.
 
-Results are cached by content hash and debounced at 200ms.
+Results are cached by content hash and debounced (200ms default, configurable).
 
 ## Settings
 
 <details>
-<summary>All settings (17 options)</summary>
+<summary>All settings (18 options)</summary>
 
 All settings are under the `reactCompilerLens` namespace.
 
@@ -58,10 +58,42 @@ All settings are under the `reactCompilerLens` namespace.
 | `diagnostics.severity` | `"warning"` | Severity: `warning`, `error`, or `info` |
 | `diagnostics.showDescription` | `true` | Include extended description |
 | `diagnostics.showRelatedLocations` | `true` | Show related source locations |
+| `analysis.debounceMs` | `200` | Delay (ms) before re-analyzing (50–2000) |
 | `framework` | `"auto"` | Framework detection: `auto`, `nextjs`, or `none` |
 | `compiledOutput.viewMode` | `"side"` | Display mode: `side` or `peek` |
 
 </details>
+
+## Troubleshooting
+
+### CodeLens not appearing?
+- Ensure your file is `.tsx` or `.jsx` — the extension activates on these languages only
+- Check the Output panel → select "React Compiler Lens" channel for error details
+- Try the command: **React Compiler Lens: Refresh**
+
+### Extension not activating?
+- Verify `babel-plugin-react-compiler` is installed in your project
+- Check the Extensions panel to confirm React Compiler Lens is enabled
+
+### "Not Optimized" on most components?
+- Click the category badge (e.g., `Refs`) in the Problems panel for details
+- Common causes: ref access during render, setState in render, impure function calls
+- Some patterns are not yet supported by the React Compiler
+
+### Wrong framework detection?
+- Set `reactCompilerLens.framework` to `"nextjs"` or `"none"` manually in settings
+- Auto-detection looks for `next.config.{js,ts,mjs}` in your workspace root
+
+### Performance issues?
+- Increase debounce delay: `reactCompilerLens.analysis.debounceMs` (default: 200ms)
+- Files larger than 500K characters are automatically skipped
+
+## Known Limitations
+
+- Only analyzes `.tsx` and `.jsx` files (not `.ts` or `.js` without JSX)
+- Packages in `node_modules` are not analyzed for directives
+- Reactive values are extracted from compiled output and may not capture all dependency patterns
+- Server Action import labels are not yet supported (actions use camelCase names, bypassing component detection)
 
 ## Contributing
 

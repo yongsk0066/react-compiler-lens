@@ -25,7 +25,7 @@ let cachedPlugin: unknown = null;
 async function getReactCompilerPlugin(): Promise<unknown> {
   if (cachedPlugin) return cachedPlugin;
   const mod = await import('babel-plugin-react-compiler');
-  cachedPlugin = (mod as any).default ?? mod;
+  cachedPlugin = (mod as { default?: unknown }).default ?? mod;
   return cachedPlugin;
 }
 
@@ -33,11 +33,17 @@ function locKey(loc: t.SourceLocation): string {
   return `${loc.start.line}:${loc.start.column}-${loc.end.line}:${loc.end.column}`;
 }
 
+const MAX_FILE_CHARS = 500_000; // ~500K characters — skip analysis for very large files
+
 export async function compileFile(
   code: string,
   filename: string,
 ): Promise<CompileFileResult> {
   const empty: CompileFileResult = { events: [], compiledCode: null, ast: null, getComponentEvents: () => [] };
+
+  if (code.length > MAX_FILE_CHARS) {
+    return empty;
+  }
 
   let ast: Awaited<ReturnType<typeof parseAsync>>;
   try {
@@ -107,6 +113,7 @@ export async function compileFile(
   };
 
   let compiledCode: string | null = null;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
   try {
     const transformPromise = transformFromAstAsync(ast, code, {
       filename,
@@ -117,13 +124,15 @@ export async function compileFile(
       configFile: false,
       babelrc: false,
     });
-    const timeoutPromise = new Promise<null>((_, reject) =>
-      setTimeout(() => reject(new Error('Compilation timed out')), COMPILE_TIMEOUT_MS),
-    );
+    const timeoutPromise = new Promise<null>((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error('Compilation timed out')), COMPILE_TIMEOUT_MS);
+    });
     const result = await Promise.race([transformPromise, timeoutPromise]);
     compiledCode = result?.code ?? null;
   } catch {
     // Transformation failed or timed out — events already captured via logger
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
   }
 
   const classification = classifyFunctions(ast);

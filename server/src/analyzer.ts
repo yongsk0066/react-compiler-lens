@@ -169,7 +169,7 @@ export class Analyzer {
       }
       // Fallback for unknown detail structures
       const msg = detail && typeof detail === 'object' && 'reason' in detail
-        ? String((detail as any).reason)
+        ? String((detail as { reason?: unknown }).reason)
         : String(detail);
       return [{ message: msg, line: null, column: null, severity: 'error' }];
     }
@@ -191,12 +191,14 @@ export class Analyzer {
   }
 
   private extractFromCompilerDiagnostic(diag: InstanceType<typeof CompilerDiagnostic>): DiagnosticInfo {
+    type DiagDetail = { kind: string; loc?: unknown; message?: string | null };
+
     const loc = safeGetLocation(diag.primaryLocation());
     const errorDetails = diag.options.details.filter(
-      (d: any) => d.kind === 'error' && d.loc && typeof d.loc !== 'symbol'
+      (d: DiagDetail) => d.kind === 'error' && d.loc && typeof d.loc !== 'symbol'
     );
     const hintDetails = diag.options.details.filter(
-      (d: any) => d.kind === 'hint'
+      (d: DiagDetail) => d.kind === 'hint'
     );
 
     return {
@@ -207,15 +209,15 @@ export class Analyzer {
       category: diag.category,
       description: diag.description,
       details: [
-        ...errorDetails.map((d: any) => ({
+        ...errorDetails.map((d: DiagDetail) => ({
           kind: 'error' as const,
           line: safeGetLocation(d.loc)?.line,
           column: safeGetLocation(d.loc)?.column,
           message: d.message ?? '',
         })),
-        ...hintDetails.map((d: any) => ({
+        ...hintDetails.map((d: DiagDetail) => ({
           kind: 'hint' as const,
-          message: d.message,
+          message: d.message ?? '',
         })),
       ],
     };
@@ -372,27 +374,31 @@ function mapCompilerSeverity(severity: string): 'error' | 'warning' | 'info' {
 function isCompilerDiagnostic(detail: unknown): detail is CompilerDiagnostic {
   if (detail instanceof CompilerDiagnostic) return true;
   // Duck typing fallback
-  return detail !== null && typeof detail === 'object'
-    && 'options' in detail
-    && typeof (detail as any).options === 'object'
-    && 'details' in (detail as any).options
-    && Array.isArray((detail as any).options.details);
+  if (detail === null || typeof detail !== 'object' || !('options' in detail)) return false;
+  const obj = detail as Record<string, unknown>;
+  if (typeof obj.options !== 'object' || obj.options === null) return false;
+  const opts = obj.options as Record<string, unknown>;
+  return 'details' in opts && Array.isArray(opts.details);
 }
 
 /** Type guard: is the detail a CompilerErrorDetail instance? */
 function isCompilerErrorDetail(detail: unknown): detail is CompilerErrorDetail {
   if (detail instanceof CompilerErrorDetail) return true;
   // Duck typing fallback
-  return detail !== null && typeof detail === 'object'
-    && 'category' in detail && 'reason' in detail
-    && typeof (detail as any).reason === 'string'
-    && !('options' in detail);
+  if (detail === null || typeof detail !== 'object') return false;
+  const obj = detail as Record<string, unknown>;
+  return 'category' in obj && 'reason' in obj
+    && typeof obj.reason === 'string'
+    && !('options' in obj);
 }
 
 // ── Reactive values extraction (compiled output parsing) ──
 
-/** Extract per-function reactive dependencies from compiled React Compiler output. */
-function buildReactiveValuesMap(compiledCode: string): Map<string, string[]> {
+/**
+ * Extract per-function reactive dependencies from compiled React Compiler output.
+ * @internal — exported for testing only
+ */
+export function buildReactiveValuesMap(compiledCode: string): Map<string, string[]> {
   let ast: ReturnType<typeof parseCode>;
   try {
     ast = parseCode(compiledCode);
@@ -461,9 +467,9 @@ function toNamedFunction(node: t.Statement): { name: string; body: t.BlockStatem
 }
 
 /** Find cache dependency identifiers from $[N] !== dep patterns in a function body. */
-function findCacheDeps(body: any): string[] {
+function findCacheDeps(body: t.Node): string[] {
   const deps: string[] = [];
-  walkAst(body as unknown as t.Node, node => {
+  walkAst(body, node => {
     if (node.type !== 'BinaryExpression') return;
     const bin = node as t.BinaryExpression;
     if (bin.operator !== '!==') return;
@@ -494,9 +500,12 @@ function toDepString(node: t.Node): string | null {
     const prop = ((node as t.MemberExpression).property as t.Identifier).name;
     return obj ? `${obj}.${prop}` : null;
   }
-  if (node.type === 'OptionalMemberExpression' && !(node as any).computed) {
-    const obj = toDepString((node as any).object as t.Node);
-    const prop = ((node as any).property as t.Identifier).name;
+  if (node.type === 'OptionalMemberExpression') {
+    interface OptionalMemberExpr { type: 'OptionalMemberExpression'; computed: boolean; object: t.Node; property: t.Node }
+    const optNode = node as unknown as OptionalMemberExpr;
+    if (optNode.computed) return null;
+    const obj = toDepString(optNode.object);
+    const prop = (optNode.property as t.Identifier).name;
     return obj ? `${obj}?.${prop}` : null;
   }
   return null;

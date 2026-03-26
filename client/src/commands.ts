@@ -75,6 +75,17 @@ export function registerCommands(context: vscode.ExtensionContext, client: Langu
       await client.sendRequest('react-compiler-lens/refresh');
     }),
   );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('reactCompilerLens.toggleEnabled', async () => {
+      const config = vscode.workspace.getConfiguration('reactCompilerLens');
+      const current = config.get<boolean>('enabled', true);
+      await config.update('enabled', !current, vscode.ConfigurationTarget.Workspace);
+      vscode.window.showInformationMessage(
+        `React Compiler Lens: ${!current ? 'Enabled' : 'Disabled'}`
+      );
+    }),
+  );
 }
 
 async function fetchCompiledCode(client: LanguageClient, fileUri: string): Promise<string | null> {

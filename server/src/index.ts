@@ -38,6 +38,7 @@ interface Config {
   showDescription: boolean;
   showRelatedLocations: boolean;
   framework: string;
+  debounceMs: number;
 }
 
 const defaultConfig: Config = {
@@ -57,6 +58,7 @@ const defaultConfig: Config = {
   showDescription: true,
   showRelatedLocations: true,
   framework: 'auto',
+  debounceMs: 200,
 };
 
 const connection = createConnection(ProposedFeatures.all);
@@ -72,7 +74,16 @@ const contentHashCache = new Map<string, string>();
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const inFlightAnalysis = new Set<string>();
 
-const DEBOUNCE_MS = 200;
+const MAX_ANALYSIS_CACHE = 200;
+
+function cacheAnalysis(uri: string, result: FileAnalysisResult): void {
+  if (analysisCache.size >= MAX_ANALYSIS_CACHE && !analysisCache.has(uri)) {
+    const oldest = analysisCache.keys().next().value!;
+    analysisCache.delete(oldest);
+    contentHashCache.delete(oldest);
+  }
+  analysisCache.set(uri, result);
+}
 
 function md5(content: string): string {
   return crypto.createHash('md5').update(content).digest('hex');
@@ -115,6 +126,7 @@ connection.onDidChangeConfiguration(change => {
 
   const codeLens = s['codeLens'] as Record<string, unknown> | undefined;
   const diagnostics = s['diagnostics'] as Record<string, unknown> | undefined;
+  const analysis = s['analysis'] as Record<string, unknown> | undefined;
 
   config = {
     enabled: (s['enabled'] as boolean) ?? defaultConfig.enabled,
@@ -133,6 +145,9 @@ connection.onDidChangeConfiguration(change => {
     showDescription: (diagnostics?.['showDescription'] as boolean) ?? defaultConfig.showDescription,
     showRelatedLocations: (diagnostics?.['showRelatedLocations'] as boolean) ?? defaultConfig.showRelatedLocations,
     framework: (s['framework'] as string) ?? defaultConfig.framework,
+    debounceMs: Math.max(50, Math.min(2000,
+      typeof analysis?.['debounceMs'] === 'number' ? analysis['debounceMs'] : defaultConfig.debounceMs,
+    )),
   };
 
   if (config.framework !== 'auto') {
@@ -175,7 +190,7 @@ function scheduleAnalysis(document: TextDocument): void {
   const timer = setTimeout(() => {
     debounceTimers.delete(uri);
     void runAnalysis(document);
-  }, DEBOUNCE_MS);
+  }, config.debounceMs);
 
   debounceTimers.set(uri, timer);
 }
@@ -211,7 +226,7 @@ async function runAnalysis(document: TextDocument): Promise<void> {
       return;
     }
 
-    analysisCache.set(uri, result);
+    cacheAnalysis(uri, result);
 
     if (config.diagnosticsEnabled) {
       publishDiagnostics(uri, result);
@@ -255,6 +270,7 @@ function publishDiagnostics(uri: string, result: FileAnalysisResult): void {
         severity,
         source: 'react-compiler',
         message,
+        code: info.category ? info.category : undefined,
       };
 
       // Add related locations (e.g., freeze point + mutation point)
