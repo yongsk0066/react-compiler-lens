@@ -248,13 +248,13 @@
     "package": "vsce package --no-dependencies"
   },
   "devDependencies": {
-    "@types/node": "^25.5.0",
-    "@types/vscode": "^1.110.0",
+    "@types/node": "^25.5.2",
+    "@types/vscode": "^1.115.0",
     "@vscode/vsce": "^3.7.1",
     "oxfmt": "^0.42.0",
     "oxlint": "^1.57.0",
-    "rolldown": "1.0.0-rc.12",
+    "rolldown": "1.0.0-rc.14",
     "typescript": "^6.0.2",
-    "vitest": "^4.1.1"
+    "vitest": "^4.1.3"
   }
 }
