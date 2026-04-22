@@ -9,7 +9,7 @@
     "@babel/types": "^7.29.0",
     "@types/babel__core": "^7.20.5",
     "babel-plugin-react-compiler": "1.0.0",
-    "typescript": "^6.0.2",
+    "typescript": "^6.0.3",
     "@react-compiler-lens/shared": "workspace:*"
   }
 }
